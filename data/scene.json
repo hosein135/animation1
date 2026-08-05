@@ -1,0 +1,29 @@
+{
+  "title": "Monthly Pulse",
+  "fps": 24,
+  "duration_seconds": 4,
+  "resolution": [1280, 720],
+  "background_color": [0.06, 0.08, 0.12, 1.0],
+  "camera": {
+    "location": [0.0, -12.0, 6.0],
+    "look_at": [0.0, 0.0, 1.2],
+    "lens": 40
+  },
+  "lighting": {
+    "sun_energy": 3.5,
+    "sun_rotation_euler": [0.9, 0.2, 0.4],
+    "fill_energy": 80.0
+  },
+  "bar": {
+    "spacing": 1.15,
+    "base_radius": 0.35,
+    "max_height": 4.0,
+    "bounce": true
+  },
+  "output": {
+    "frame_format": "PNG",
+    "video_codec": "libx264",
+    "video_crf": 18,
+    "video_preset": "medium"
+  }
+}
