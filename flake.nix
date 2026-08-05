@@ -1,8 +1,7 @@
 {
-  description = "Short data-driven Blender animation (Python + FFmpeg), pinned to nixos-25.05";
+  description = "GPU/CPU-accelerated animation (Blender + ModernGL + FFmpeg), nixos-25.05";
 
   nixConfig = {
-    # Prefer Hydra/cache.nixos.org binaries over compiling from source.
     extra-substituters = [ "https://cache.nixos.org" ];
     extra-trusted-public-keys = [
       "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
@@ -23,9 +22,13 @@
         let
           pkgs = import nixpkgs { inherit system; };
 
-          pythonEnv = pkgs.python3;
+          # Python deps from the Nix store (not pip).
+          pythonEnv = pkgs.python3.withPackages (ps: with ps; [
+            moderngl
+            numpy
+            pillow
+          ]);
 
-          # Ship scripts + sample data inside the derivation for reproducible runs.
           projectSrc = pkgs.runCommand "animation-src" { } ''
             mkdir -p $out/scripts $out/data
             cp -r ${./scripts}/* $out/scripts/
@@ -37,15 +40,14 @@
             runtimeInputs = [
               pythonEnv
               pkgs.blender
-              pkgs.ffmpeg
+              pkgs.ffmpeg-full
               pkgs.coreutils
               pkgs.findutils
             ];
             text = ''
               set -euo pipefail
 
-              # Prefer live project tree (editable data/) when present; else use packaged copy.
-              if [[ -f "./scripts/render_animation.py" && -d "./data" ]]; then
+              if [[ -f "./scripts/pipeline.py" && -d "./data" ]]; then
                 PROJECT="$(pwd)"
                 DATA_DIR="$PROJECT/data"
                 echo "==> Using project data from: $DATA_DIR"
@@ -61,22 +63,8 @@
               export OUTPUT_DIR
               mkdir -p "$OUTPUT_DIR/frames"
 
-              echo "==> Validating structured data..."
-              python3 "$PROJECT/scripts/validate_data.py"
-
-              echo "==> Rendering frames with Blender (headless)..."
-              blender --background --python "$PROJECT/scripts/render_animation.py" -- \
-                --data-dir "$DATA_DIR" \
-                --output-dir "$OUTPUT_DIR"
-
-              echo "==> Encoding video with FFmpeg..."
-              python3 "$PROJECT/scripts/encode_video.py" \
-                --frames-dir "$OUTPUT_DIR/frames" \
-                --output "$OUTPUT_DIR/animation.mp4" \
-                --scene "$DATA_DIR/scene.json"
-
-              echo "==> Animation ready: $OUTPUT_DIR/animation.mp4"
-              ls -la "$OUTPUT_DIR" || true
+              # e.g. --renderer gpu|blender|auto  --engine cycles  --workers 4
+              python3 "$PROJECT/scripts/pipeline.py" "$@"
             '';
           };
         in
@@ -100,18 +88,23 @@
       devShells = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
+          pythonEnv = pkgs.python3.withPackages (ps: with ps; [
+            moderngl
+            numpy
+            pillow
+          ]);
         in
         {
           default = pkgs.mkShell {
             packages = [
-              pkgs.python3
+              pythonEnv
               pkgs.blender
-              pkgs.ffmpeg
+              pkgs.ffmpeg-full
               pkgs.curl
             ];
             shellHook = ''
-              echo "devShell ready (nixos-25.05): python3, blender, ffmpeg"
-              echo "Run: ./run.sh   or   nix run .#animate"
+              echo "devShell (nixos-25.05): python3+moderngl/numpy/pillow, blender, ffmpeg-full"
+              echo "Run: ./run.sh   or   nix run .#animate -- --renderer auto"
             '';
           };
         }

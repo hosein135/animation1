@@ -9,7 +9,164 @@ $pythonTargetVersion = "3.12.8"
 $blenderTargetVersion = "4.5.5"
 $ffmpegTargetVersion = "7.1"
 
+function Write-Section([string]$Title) {
+    Write-Host ""
+    Write-Host ("=" * 64) -ForegroundColor DarkCyan
+    Write-Host " $Title" -ForegroundColor Cyan
+    Write-Host ("=" * 64) -ForegroundColor DarkCyan
+}
+
+function Refresh-SessionPath {
+    param([string]$WingetPackagesRoot)
+
+    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                [System.Environment]::GetEnvironmentVariable("Path", "User")
+
+    if ($WingetPackagesRoot -and (Test-Path $WingetPackagesRoot)) {
+        foreach ($exeName in @("vfox.exe", "blender.exe", "ffmpeg.exe")) {
+            $exe = Get-ChildItem -Path $WingetPackagesRoot -Recurse -Filter $exeName -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+            if ($exe -and ($env:Path -notlike "*$($exe.DirectoryName)*")) {
+                $env:Path = "$($exe.DirectoryName);$env:Path"
+            }
+        }
+    }
+
+    # Blender MSI installs under Program Files\Blender Foundation\Blender X.Y\
+    $blenderRoots = @(
+        "${env:ProgramFiles}\Blender Foundation",
+        "${env:ProgramFiles(x86)}\Blender Foundation"
+    )
+    foreach ($root in $blenderRoots) {
+        if (-not (Test-Path $root)) { continue }
+        $exe = Get-ChildItem -Path $root -Recurse -Filter "blender.exe" -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($exe -and ($env:Path -notlike "*$($exe.DirectoryName)*")) {
+            $env:Path = "$($exe.DirectoryName);$env:Path"
+        }
+    }
+
+    $vfoxHome = "$HOME\.vfox"
+    if ((Test-Path $vfoxHome) -and ($env:Path -notlike "*$vfoxHome*")) {
+        $env:Path = "$vfoxHome;$env:Path"
+    }
+}
+
+function Show-HostHardwareInventory {
+    Write-Section "Host hardware inventory (Windows)"
+
+    try {
+        $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+        $cpuName = if ($cpu) { $cpu.Name.Trim() } else { "Unknown" }
+        $cpuVendor = if ($cpu) { $cpu.Manufacturer } else { "Unknown" }
+        $logical = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
+        Write-Host "  CPU name : $cpuName" -ForegroundColor White
+        Write-Host "  CPU maker : $cpuVendor" -ForegroundColor Gray
+        Write-Host "  Threads  : $logical" -ForegroundColor Gray
+        if ($cpuName -match '(?i)intel') {
+            Write-Host "  Class    : Intel CPU (detected)" -ForegroundColor Green
+        } else {
+            Write-Host "  Class    : Non-Intel CPU (still used for orchestration / software encode)" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "  CPU query failed: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
+    Write-Host ""
+    Write-Host "  Display adapters:" -ForegroundColor White
+    $adapters = @()
+    try {
+        $adapters = @(Get-CimInstance Win32_VideoController | Where-Object { $_.Name })
+    } catch {
+        Write-Host "  Adapter query failed: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+
+    if (-not $adapters -or $adapters.Count -eq 0) {
+        Write-Host "  (none reported by Win32_VideoController)" -ForegroundColor Yellow
+    } else {
+        foreach ($gpu in $adapters) {
+            $name = $gpu.Name
+            $ramMB = if ($gpu.AdapterRAM -and $gpu.AdapterRAM -gt 0) {
+                [math]::Round($gpu.AdapterRAM / 1MB)
+            } else { $null }
+
+            $kind = "Other GPU"
+            $color = "Gray"
+            if ($name -match '(?i)nvidia|geforce|quadro|rtx |gtx ') {
+                $kind = "External / discrete NVIDIA GPU"
+                $color = "Green"
+            } elseif ($name -match '(?i)intel') {
+                $kind = "Internal Intel GPU (iGPU / Arc)"
+                $color = "Cyan"
+            } elseif ($name -match '(?i)amd|radeon') {
+                $kind = "AMD GPU"
+                $color = "Yellow"
+            }
+
+            $ramText = if ($null -ne $ramMB) { " | reported VRAM ~${ramMB} MB" } else { "" }
+            Write-Host "   - [$kind] $name$ramText" -ForegroundColor $color
+        }
+    }
+
+    Write-Host ""
+    if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
+        Write-Host "  nvidia-smi:" -ForegroundColor White
+        & nvidia-smi -L 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  nvidia-smi present but -L failed (driver issue?)" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "  nvidia-smi: not on PATH — NVIDIA CUDA/NVENC path will be unavailable" -ForegroundColor Yellow
+    }
+}
+
+function Show-PipelineInvolvement {
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonCmd,
+        [Parameter(Mandatory = $true)][string]$ScenePath,
+        [string]$Renderer = "auto"
+    )
+
+    Write-Section "Pipeline involvement (NVIDIA / Intel GPU / CPU)"
+    Write-Host "  Explains what this run will use, and why unused devices are skipped." -ForegroundColor DarkGray
+    Write-Host ""
+
+    $hwScript = Join-Path $PSScriptRoot "scripts\hw_detect.py"
+    if (-not (Test-Path $hwScript)) {
+        Write-Host "  Missing $hwScript — skipping involvement report." -ForegroundColor Yellow
+        return
+    }
+
+    & $PythonCmd $hwScript --scene $ScenePath --renderer $Renderer
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  Involvement report failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
+    }
+}
+
+function Get-RendererFromArgs {
+    param([string[]]$PipelineArgs)
+    for ($i = 0; $i -lt $PipelineArgs.Count; $i++) {
+        if ($PipelineArgs[$i] -eq "--renderer" -and ($i + 1) -lt $PipelineArgs.Count) {
+            return $PipelineArgs[$i + 1]
+        }
+    }
+    # Fall back to scene.json acceleration.renderer when present
+    $scenePath = Join-Path $PSScriptRoot "data\scene.json"
+    if (Test-Path $scenePath) {
+        try {
+            $scene = Get-Content -Raw -Path $scenePath | ConvertFrom-Json
+            if ($scene.acceleration -and $scene.acceleration.renderer) {
+                return [string]$scene.acceleration.renderer
+            }
+        } catch {
+            # ignore malformed JSON here; pipeline validation will catch it
+        }
+    }
+    return "auto"
+}
+
 ## 1. INSTALL WINGET (if not already available)
+Write-Section "Bootstrap: WinGet"
 if (!(Get-Command winget -ErrorAction SilentlyContinue)) {
     Write-Host "WinGet not found. Installing WinGet and App Installer dependencies..." -ForegroundColor Yellow
 
@@ -27,9 +184,11 @@ if (!(Get-Command winget -ErrorAction SilentlyContinue)) {
 }
 
 ## 2. REFRESH PATH SO WINGET IS USABLE IN CURRENT SESSION
-$env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+$wingetPackagesRoot = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages"
+Refresh-SessionPath -WingetPackagesRoot $wingetPackagesRoot
 
 ## 3. INSTALL VFOX (VERSION FOX) WITH EXACT PACKAGE ID
+Write-Section "Bootstrap: vfox + Python"
 $vfoxVersion = "0.6.2"
 # Correct package ID for vfox is version-fox.vfox
 $vfoxPackageId = "version-fox.vfox"
@@ -42,19 +201,7 @@ if (!(Get-Command vfox -ErrorAction SilentlyContinue)) {
 }
 
 ## 4. DYNAMICALLY RESOLVE AND APPEND VFOX PATH TO CURRENT SESSION
-# Refresh machine/user paths first
-$env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-
-# Deep search inside WinGet Packages directory where store apps/winget place binaries dynamically
-$wingetPackagesRoot = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages"
-if (Test-Path $wingetPackagesRoot) {
-    $vfoxFolder = Get-ChildItem -Path $wingetPackagesRoot -Recurse -Filter "vfox.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($vfoxFolder) {
-        $vfoxBinDir = $vfoxFolder.DirectoryName
-        $env:Path = "$vfoxBinDir;$env:Path"
-        Write-Host "Found vfox binary at: $vfoxBinDir" -ForegroundColor Green
-    }
-}
+Refresh-SessionPath -WingetPackagesRoot $wingetPackagesRoot
 
 # Fallback check standard paths
 $fallbackPaths = @(
@@ -90,14 +237,7 @@ vfox use -g "python@$pythonTargetVersion"
 vfox use -p "python@$pythonTargetVersion"
 
 ## 6. FINAL PATH & ENVIRONMENT REFRESH FOR PYTHON
-$env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-
-$vfoxHomeBin = "$HOME\.vfox"
-if (Test-Path $vfoxHomeBin) {
-    $env:Path = "$HOME\.vfox;$env:Path"
-}
-
-# Re-activate so python/python3 from the pinned vfox version are on PATH
+Refresh-SessionPath -WingetPackagesRoot $wingetPackagesRoot
 if (Get-Command vfox -ErrorAction SilentlyContinue) {
     Invoke-Expression "$(vfox activate pwsh)"
 }
@@ -116,33 +256,7 @@ if (-not $pythonCmd) {
 & $pythonCmd --version
 
 ## 7. ENSURE BLENDER + FFMPEG AT FIXED VERSIONS (required by the animation pipeline)
-function Refresh-SessionPath {
-    $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-
-    if (Test-Path $wingetPackagesRoot) {
-        foreach ($exeName in @("blender.exe", "ffmpeg.exe")) {
-            $exe = Get-ChildItem -Path $wingetPackagesRoot -Recurse -Filter $exeName -ErrorAction SilentlyContinue |
-                Select-Object -First 1
-            if ($exe -and ($env:Path -notlike "*$($exe.DirectoryName)*")) {
-                $env:Path = "$($exe.DirectoryName);$env:Path"
-            }
-        }
-    }
-
-    # Blender MSI installs under Program Files\Blender Foundation\Blender X.Y\
-    $blenderRoots = @(
-        "${env:ProgramFiles}\Blender Foundation",
-        "${env:ProgramFiles(x86)}\Blender Foundation"
-    )
-    foreach ($root in $blenderRoots) {
-        if (-not (Test-Path $root)) { continue }
-        $exe = Get-ChildItem -Path $root -Recurse -Filter "blender.exe" -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-        if ($exe -and ($env:Path -notlike "*$($exe.DirectoryName)*")) {
-            $env:Path = "$($exe.DirectoryName);$env:Path"
-        }
-    }
-}
+Write-Section "Bootstrap: Blender + FFmpeg"
 
 function Ensure-WingetPackage {
     param(
@@ -152,10 +266,17 @@ function Ensure-WingetPackage {
         [Parameter(Mandatory = $true)][string]$CommandName
     )
 
-    Write-Host "Installing $Name version $Version via winget ($Id)..." -ForegroundColor Yellow
+    Refresh-SessionPath -WingetPackagesRoot $wingetPackagesRoot
+
+    if (Get-Command $CommandName -ErrorAction SilentlyContinue) {
+        Write-Host "$Name is already installed; skipping download." -ForegroundColor Green
+        return
+    }
+
+    Write-Host "$Name not found. Installing version $Version via winget ($Id)..." -ForegroundColor Yellow
     winget install --id $Id --version $Version --exact --accept-source-agreements --accept-package-agreements
 
-    Refresh-SessionPath
+    Refresh-SessionPath -WingetPackagesRoot $wingetPackagesRoot
 
     if (-not (Get-Command $CommandName -ErrorAction SilentlyContinue)) {
         throw "$Name $Version installed but '$CommandName' is not on PATH. Open a new admin PowerShell and re-run."
@@ -170,32 +291,44 @@ Write-Host "Verifying Blender and FFmpeg..." -ForegroundColor Cyan
 blender --version | Select-Object -First 1
 ffmpeg -version | Select-Object -First 1
 
-## 8. RUN ANIMATION PIPELINE IN THE SCRIPT'S DIRECTORY
+## 8. Python GPU deps via pip (Windows). Nix uses python3Packages from the store instead.
+Write-Section "Bootstrap: Python render deps"
+Write-Host "Installing Python packages via pip: moderngl numpy pillow..." -ForegroundColor Yellow
+& $pythonCmd -m pip install --upgrade pip
+& $pythonCmd -m pip install moderngl numpy pillow
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Warning: pip install failed - use --renderer blender (winget Blender still works)" -ForegroundColor Yellow
+}
+
+## 9. HARDWARE INVENTORY + INVOLVEMENT (before render)
 $dataDir = Join-Path $PSScriptRoot "data"
 $outputDir = Join-Path $PSScriptRoot "output"
 $framesDir = Join-Path $outputDir "frames"
+$scenePath = Join-Path $dataDir "scene.json"
 
 New-Item -ItemType Directory -Force -Path $framesDir | Out-Null
 $env:PROJECT_ROOT = $PSScriptRoot
 $env:DATA_DIR = $dataDir
 $env:OUTPUT_DIR = $outputDir
 
-Write-Host "==> Validating structured data..." -ForegroundColor Yellow
-& $pythonCmd (Join-Path $PSScriptRoot "scripts\validate_data.py")
-if ($LASTEXITCODE -ne 0) { throw "Data validation failed." }
+$pipelineArgs = @()
+if ($args.Count -gt 0) { $pipelineArgs = @($args) }
+$rendererChoice = Get-RendererFromArgs -PipelineArgs $pipelineArgs
 
-Write-Host "==> Rendering frames with Blender (headless)..." -ForegroundColor Yellow
-& blender --background --python (Join-Path $PSScriptRoot "scripts\render_animation.py") -- `
-    --data-dir $dataDir `
-    --output-dir $outputDir
-if ($LASTEXITCODE -ne 0) { throw "Blender render failed." }
+Show-HostHardwareInventory
+Show-PipelineInvolvement -PythonCmd $pythonCmd -ScenePath $scenePath -Renderer $rendererChoice
 
-Write-Host "==> Encoding video with FFmpeg..." -ForegroundColor Yellow
-& $pythonCmd (Join-Path $PSScriptRoot "scripts\encode_video.py") `
-    --frames-dir $framesDir `
-    --output (Join-Path $outputDir "animation.mp4") `
-    --scene (Join-Path $dataDir "scene.json")
-if ($LASTEXITCODE -ne 0) { throw "FFmpeg encode failed." }
+## 10. RUN ACCELERATED PIPELINE (runtime hardware detection - not hardcoded)
+Write-Section "Render + encode"
+Write-Host "==> Running accelerated pipeline (renderer arg: $rendererChoice)..." -ForegroundColor Yellow
+& $pythonCmd (Join-Path $PSScriptRoot "scripts\pipeline.py") @pipelineArgs
+if ($LASTEXITCODE -ne 0) { throw "Pipeline failed." }
 
+Write-Section "Done"
 Write-Host "==> Animation ready: $outputDir\animation.mp4" -ForegroundColor Green
+Write-Host ""
+Write-Host "Legend:" -ForegroundColor DarkGray
+Write-Host "  NVIDIA  = discrete / external GPU (CUDA / OptiX / NVENC when selected)" -ForegroundColor DarkGray
+Write-Host "  Intel GPU = internal iGPU / Arc (Quick Sync encode when selected)" -ForegroundColor DarkGray
+Write-Host "  CPU     = always involved for orchestration; also encodes if libx264 is chosen" -ForegroundColor DarkGray
 Get-ChildItem $outputDir | Format-Table Name, Length, LastWriteTime

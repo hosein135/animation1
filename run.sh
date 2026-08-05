@@ -139,20 +139,22 @@ run_pipeline() {
 
   # Flake is pinned to github:NixOS/nixpkgs/nixos-25.05
   # First run generates flake.lock automatically.
+  # Extra args are forwarded to scripts/pipeline.py (e.g. --renderer gpu).
   nix run "${ROOT}#animate" \
     --option connect-timeout 60 \
     --option download-attempts 5 \
-    --accept-flake-config
+    --accept-flake-config \
+    -- "$@"
 
   ok "Done. Outputs are in: ${ROOT}/output"
   ls -la "${ROOT}/output" || true
 }
 
 main() {
-  log "Animation project bootstrap"
+  log "Animation project bootstrap (GPU/CPU accelerated pipeline)"
   ensure_curl
   ensure_nix
-  run_pipeline
+  run_pipeline "$@"
 }
 
 main "$@"

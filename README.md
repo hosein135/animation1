@@ -1,46 +1,52 @@
-# Data-Driven Animation (Nix + Blender + FFmpeg)
+# Data-Driven Animation (GPU / CPU accelerated)
 
-Command-line pipeline that bootstraps **curl** and **Nix**, enters a flake pinned to **nixos-25.05**, then renders a short bar-chart animation from `data/` into `output/`.
+Validates `data/`, renders a bar-chart animation, encodes `output/animation.mp4`.
 
-## Requirements
+CUDA does not replace Python/Blender for scene setup — it accelerates rendering and encode when the **runtime** machine has NVIDIA/Intel hardware (detected live).
 
-- Linux (or macOS with Nix). On Windows, use WSL2.
-- Ability to install packages (sudo) if curl/Nix are missing.
+## Tooling by platform
+
+| Platform | How tools are installed |
+|----------|-------------------------|
+| **Windows (`run.ps1`)** | **winget:** Python (vfox), Blender, FFmpeg · **pip:** `moderngl` `numpy` `pillow` |
+| **Nix (`run.sh` / flake)** | **store:** `blender`, `ffmpeg-full`, `python3` + `moderngl` / `numpy` / `pillow` (no pip) |
+
+## Acceleration
+
+| Mode | Workload |
+|------|----------|
+| `--renderer gpu` | ModernGL OpenGL → raw frames piped to FFmpeg |
+| `--renderer blender` | Build `.blend` once, parallel Blender workers (OptiX/CUDA/EEVEE) |
+| Encode | **NVENC** → **QSV** → threaded **libx264** |
 
 ## Quick start
 
-```bash
-chmod +x run.sh
-./run.sh
+```powershell
+# Windows (admin) — winget + pip
+.\run.ps1
+.\run.ps1 --renderer gpu
+.\run.ps1 --renderer blender --engine cycles
 ```
 
-What `run.sh` does:
-
-1. Checks for `curl`; installs it via apt/dnf/yum/pacman/zypper/apk/emerge/xbps/brew if needed.
-2. Checks for Nix; installs it (daemon on systemd Linux, single-user otherwise).
-3. Enables flakes (`experimental-features = nix-command flakes`).
-4. Runs `nix run .#animate` using **nixpkgs nixos-25.05**.
-
-## Manual Nix commands
-
 ```bash
-nix develop          # shell with python3, blender, ffmpeg
-nix run .#animate    # validate data → Blender frames → FFmpeg MP4
+# Linux / macOS / WSL — Nix store packages only
+chmod +x run.sh
+./run.sh
+./run.sh -- --renderer gpu
+nix run .#animate -- --renderer auto --workers 4
 ```
 
 ## Layout
 
 | Path | Role |
 |------|------|
-| `run.sh` | Bootstrap + launch |
-| `flake.nix` | Pinned nixos-25.05 env (Python, Blender, FFmpeg) |
-| `data/scene.json` | FPS, resolution, camera, lighting |
-| `data/values.csv` | Monthly values + RGB colors for each bar |
-| `scripts/validate_data.py` | CSV/JSON checks |
-| `scripts/render_animation.py` | Headless Blender animation |
-| `scripts/encode_video.py` | FFmpeg MP4 encode |
-| `output/` | Frames + `animation.mp4` |
+| `run.ps1` | winget + pip bootstrap |
+| `run.sh` / `flake.nix` | Nix store bootstrap (`python3.withPackages`) |
+| `scripts/pipeline.py` | Orchestrator |
+| `scripts/hw_detect.py` | Runtime NVIDIA/NVENC/QSV/CPU detect |
+| `scripts/gpu_native_render.py` | ModernGL path |
+| `scripts/render_animation.py` | Blender GPU + chunked workers |
+| `scripts/encode_video.py` | NVENC / QSV / libx264 |
+| `data/scene.json` | Timing + `acceleration` knobs |
 
-## Customizing
-
-Edit `data/values.csv` (labels, values, colors) and/or `data/scene.json` (timing, camera, bounce), then re-run `./run.sh` or `nix run .#animate`.
+Tune `data/scene.json` → `acceleration.renderer` (`auto` / `gpu` / `blender`) and `output.prefer_encoder` (`auto` / `nvenc` / `qsv` / `cpu`).

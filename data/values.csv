@@ -1,13 +1,24 @@
 frame_label,value,r,g,b
-Jan,12,0.20,0.65,0.90
-Feb,18,0.25,0.70,0.85
-Mar,25,0.35,0.75,0.70
-Apr,22,0.45,0.80,0.55
-May,30,0.60,0.75,0.35
-Jun,28,0.85,0.65,0.25
-Jul,35,0.95,0.45,0.20
-Aug,32,0.95,0.30,0.25
-Sep,27,0.85,0.25,0.45
-Oct,20,0.65,0.30,0.70
-Nov,15,0.45,0.35,0.85
-Dec,10,0.30,0.45,0.95
+Cold open,48,0.72,0.42,0.22
+Theme sting,55,0.90,0.75,0.32
+Couch settle,42,0.52,0.30,0.48
+Russet intro,88,0.64,0.38,0.16
+Yukon intro,82,0.90,0.74,0.30
+Purple intro,86,0.50,0.28,0.54
+Warm applause,70,0.78,0.52,0.28
+Russet joke,95,0.66,0.40,0.18
+Yukon laugh,72,0.88,0.72,0.28
+Purple roast,90,0.48,0.26,0.52
+Russet retort,84,0.62,0.36,0.16
+Yukon story,93,0.92,0.76,0.32
+Purple aside,76,0.46,0.24,0.50
+Audience swell,68,0.80,0.55,0.30
+Russet deep,91,0.60,0.34,0.15
+Yukon pivot,87,0.89,0.73,0.29
+Purple monologue,98,0.52,0.30,0.56
+Russet agree,74,0.63,0.37,0.17
+Yukon fire,94,0.91,0.75,0.31
+Purple close,89,0.49,0.27,0.53
+Crowd cheer,80,0.82,0.58,0.34
+Curtain call,66,0.70,0.45,0.25
+Fade sting,44,0.58,0.35,0.42

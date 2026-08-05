@@ -1,29 +1,41 @@
 {
-  "title": "Monthly Pulse",
-  "fps": 24,
-  "duration_seconds": 4,
-  "resolution": [1280, 720],
-  "background_color": [0.06, 0.08, 0.12, 1.0],
+  "title": "Spud Talk Live — Three Potatoes, One Couch",
+  "fps": 60,
+  "duration_seconds": 20,
+  "resolution": [1920, 1080],
+  "background_color": [0.085, 0.042, 0.032, 1.0],
   "camera": {
-    "location": [0.0, -12.0, 6.0],
-    "look_at": [0.0, 0.0, 1.2],
-    "lens": 40
+    "location": [0.0, -14.5, 5.4],
+    "look_at": [0.0, 0.0, 1.8],
+    "lens": 32
   },
   "lighting": {
-    "sun_energy": 3.5,
-    "sun_rotation_euler": [0.9, 0.2, 0.4],
-    "fill_energy": 80.0
+    "sun_energy": 6.2,
+    "sun_rotation_euler": [0.82, 0.18, 0.52],
+    "fill_energy": 160.0
   },
   "bar": {
-    "spacing": 1.15,
-    "base_radius": 0.35,
-    "max_height": 4.0,
+    "spacing": 0.72,
+    "base_radius": 0.28,
+    "max_height": 5.4,
     "bounce": true
   },
+  "acceleration": {
+    "renderer": "auto",
+    "blender_engine": "cycles",
+    "blender_workers": 0,
+    "blender_threads": 0,
+    "prefer_cycles_gpu": true,
+    "cycles_samples": 256
+  },
   "output": {
-    "frame_format": "PNG",
-    "video_codec": "libx264",
-    "video_crf": 18,
-    "video_preset": "medium"
+    "frame_format": "JPEG",
+    "jpeg_quality": 98,
+    "video_codec": "auto",
+    "prefer_encoder": "auto",
+    "video_crf": 14,
+    "video_cq": 15,
+    "video_preset": "slow",
+    "nvenc_preset": "p7"
   }
 }
