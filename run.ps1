@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 $ErrorActionPreference = 'Stop'
 
 # Automatically targets the folder where this .ps1 file lives
@@ -61,7 +61,7 @@ function Show-HostHardwareInventory {
         $cpuVendor = if ($cpu) { $cpu.Manufacturer } else { "Unknown" }
         $logical = (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
         Write-Host "  CPU name : $cpuName" -ForegroundColor White
-        Write-Host "  CPU maker : $cpuVendor" -ForegroundColor Gray
+        Write-Host "  CPU vendor : $cpuVendor" -ForegroundColor Gray
         Write-Host "  Threads  : $logical" -ForegroundColor Gray
         if ($cpuName -match '(?i)intel') {
             Write-Host "  Class    : Intel CPU (detected)" -ForegroundColor Green
@@ -116,7 +116,7 @@ function Show-HostHardwareInventory {
             Write-Host "  nvidia-smi present but -L failed (driver issue?)" -ForegroundColor Yellow
         }
     } else {
-        Write-Host "  nvidia-smi: not on PATH — NVIDIA CUDA/NVENC path will be unavailable" -ForegroundColor Yellow
+        Write-Host "  nvidia-smi: not on PATH - NVIDIA CUDA/NVENC path will be unavailable" -ForegroundColor Yellow
     }
 }
 
@@ -225,6 +225,33 @@ function Get-RendererFromArgs {
     return "auto"
 }
 
+function Ensure-WingetPackage {
+    param(
+        [Parameter(Mandatory = $true)][string]$Id,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$Version,
+        [Parameter(Mandatory = $true)][string]$CommandName,
+        [Parameter(Mandatory = $true)][string]$WingetPackagesRoot
+    )
+
+    Refresh-SessionPath -WingetPackagesRoot $WingetPackagesRoot
+
+    if (Get-Command $CommandName -ErrorAction SilentlyContinue) {
+        Write-Host "$Name is already installed; skipping download." -ForegroundColor Green
+        return
+    }
+
+    Write-Host "$Name not found. Installing version $Version via winget ($Id)..." -ForegroundColor Yellow
+    winget install --id $Id --version $Version --exact --accept-source-agreements --accept-package-agreements
+
+    Refresh-SessionPath -WingetPackagesRoot $WingetPackagesRoot
+
+    if (-not (Get-Command $CommandName -ErrorAction SilentlyContinue)) {
+        throw "$Name $Version installed but '$CommandName' is not on PATH. Open a new admin PowerShell and re-run."
+    }
+    Write-Host "$Name $Version is ready." -ForegroundColor Green
+}
+
 ## 1. INSTALL WINGET (if not already available)
 Write-Section "Bootstrap: WinGet"
 if (!(Get-Command winget -ErrorAction SilentlyContinue)) {
@@ -318,34 +345,8 @@ if (-not $pythonCmd) {
 ## 7. ENSURE BLENDER + FFMPEG AT FIXED VERSIONS (required by the animation pipeline)
 Write-Section "Bootstrap: Blender + FFmpeg"
 
-function Ensure-WingetPackage {
-    param(
-        [Parameter(Mandatory = $true)][string]$Id,
-        [Parameter(Mandatory = $true)][string]$Name,
-        [Parameter(Mandatory = $true)][string]$Version,
-        [Parameter(Mandatory = $true)][string]$CommandName
-    )
-
-    Refresh-SessionPath -WingetPackagesRoot $wingetPackagesRoot
-
-    if (Get-Command $CommandName -ErrorAction SilentlyContinue) {
-        Write-Host "$Name is already installed; skipping download." -ForegroundColor Green
-        return
-    }
-
-    Write-Host "$Name not found. Installing version $Version via winget ($Id)..." -ForegroundColor Yellow
-    winget install --id $Id --version $Version --exact --accept-source-agreements --accept-package-agreements
-
-    Refresh-SessionPath -WingetPackagesRoot $wingetPackagesRoot
-
-    if (-not (Get-Command $CommandName -ErrorAction SilentlyContinue)) {
-        throw "$Name $Version installed but '$CommandName' is not on PATH. Open a new admin PowerShell and re-run."
-    }
-    Write-Host "$Name $Version is ready." -ForegroundColor Green
-}
-
-Ensure-WingetPackage -Id "BlenderFoundation.Blender" -Name "Blender" -Version $blenderTargetVersion -CommandName "blender"
-Ensure-WingetPackage -Id "Gyan.FFmpeg" -Name "FFmpeg" -Version $ffmpegTargetVersion -CommandName "ffmpeg"
+Ensure-WingetPackage -Id "BlenderFoundation.Blender" -Name "Blender" -Version $blenderTargetVersion -CommandName "blender" -WingetPackagesRoot $wingetPackagesRoot
+Ensure-WingetPackage -Id "Gyan.FFmpeg" -Name "FFmpeg" -Version $ffmpegTargetVersion -CommandName "ffmpeg" -WingetPackagesRoot $wingetPackagesRoot
 
 Write-Host "Verifying Blender and FFmpeg..." -ForegroundColor Cyan
 blender --version | Select-Object -First 1
