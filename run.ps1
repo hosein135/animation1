@@ -120,6 +120,26 @@ function Show-HostHardwareInventory {
     }
 }
 
+function Resolve-PythonExe {
+    param([Parameter(Mandatory = $true)][string]$PythonCmd)
+    # vfox/activate often defines a PowerShell function named "python" that can
+    # drop the script path and feed "--scene" to python.exe as an interpreter flag.
+    # Always resolve the real python.exe, then invoke that binary directly.
+    try {
+        $probe = & $PythonCmd -c "import sys; print(sys.executable)" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $probe) {
+            $exe = ($probe | Select-Object -Last 1).ToString().Trim()
+            if ($exe -and (Test-Path -LiteralPath $exe)) { return $exe }
+        }
+    } catch { }
+
+    $cmd = Get-Command $PythonCmd -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.Source -and (Test-Path -LiteralPath $cmd.Source) -and ($cmd.Source -match '\.exe$')) {
+        return $cmd.Source
+    }
+    return $PythonCmd
+}
+
 function Show-PipelineInvolvement {
     param(
         [Parameter(Mandatory = $true)][string]$PythonCmd,
@@ -131,15 +151,55 @@ function Show-PipelineInvolvement {
     Write-Host "  Explains what this run will use, and why unused devices are skipped." -ForegroundColor DarkGray
     Write-Host ""
 
-    $hwScript = Join-Path $PSScriptRoot "scripts\hw_detect.py"
-    if (-not (Test-Path $hwScript)) {
-        Write-Host "  Missing $hwScript — skipping involvement report." -ForegroundColor Yellow
+    $hwScript = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "scripts\hw_detect.py"))
+    if (-not (Test-Path -LiteralPath $hwScript)) {
+        Write-Host "  Missing $hwScript - skipping involvement report." -ForegroundColor Yellow
+        Write-Host "  Copy scripts\hw_detect.py from the updated animation project if this folder is a partial copy." -ForegroundColor Yellow
         return
     }
+    if (-not (Test-Path -LiteralPath $ScenePath)) {
+        Write-Host "  Missing scene file: $ScenePath (report will use defaults)" -ForegroundColor Yellow
+    }
 
-    & $PythonCmd $hwScript --scene $ScenePath --renderer $Renderer
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  Involvement report failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
+    $pythonExe = Resolve-PythonExe -PythonCmd $PythonCmd
+    # Use --flag=value so odd wrappers cannot steal argv positions.
+    $pyArgs = @(
+        $hwScript,
+        "--scene=$ScenePath",
+        "--renderer=$Renderer"
+    )
+    Write-Host "  Python : $pythonExe" -ForegroundColor DarkGray
+    Write-Host "  Script : $hwScript" -ForegroundColor DarkGray
+    Write-Host "  Args   : $($pyArgs -join ' ')" -ForegroundColor DarkGray
+    Write-Host ""
+
+    # Prefer env-based args so vfox shims cannot drop argv (fallback path).
+    $prevScene = $env:SCENE_JSON
+    $prevRenderer = $env:ANIM_RENDERER
+    $env:SCENE_JSON = $ScenePath
+    $env:ANIM_RENDERER = $Renderer
+    $prevNative = $null
+    if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+        $prevNative = $PSNativeCommandUseErrorActionPreference
+        $PSNativeCommandUseErrorActionPreference = $false
+    }
+    try {
+        & $pythonExe @pyArgs
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  Retrying via env (SCENE_JSON / ANIM_RENDERER) without CLI flags..." -ForegroundColor Yellow
+            & $pythonExe @($hwScript)
+        }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  Involvement report failed (exit $LASTEXITCODE)." -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "  Involvement report error: $($_.Exception.Message)" -ForegroundColor Yellow
+    } finally {
+        if ($null -ne $prevScene) { $env:SCENE_JSON = $prevScene } else { Remove-Item Env:SCENE_JSON -ErrorAction SilentlyContinue }
+        if ($null -ne $prevRenderer) { $env:ANIM_RENDERER = $prevRenderer } else { Remove-Item Env:ANIM_RENDERER -ErrorAction SilentlyContinue }
+        if ($null -ne $prevNative) {
+            $PSNativeCommandUseErrorActionPreference = $prevNative
+        }
     }
 }
 
@@ -304,7 +364,7 @@ if ($LASTEXITCODE -ne 0) {
 $dataDir = Join-Path $PSScriptRoot "data"
 $outputDir = Join-Path $PSScriptRoot "output"
 $framesDir = Join-Path $outputDir "frames"
-$scenePath = Join-Path $dataDir "scene.json"
+$scenePath = [System.IO.Path]::GetFullPath((Join-Path $dataDir "scene.json"))
 
 New-Item -ItemType Directory -Force -Path $framesDir | Out-Null
 $env:PROJECT_ROOT = $PSScriptRoot
@@ -316,13 +376,28 @@ if ($args.Count -gt 0) { $pipelineArgs = @($args) }
 $rendererChoice = Get-RendererFromArgs -PipelineArgs $pipelineArgs
 
 Show-HostHardwareInventory
+# Dot-source safety: call by name only after helpers above are defined in THIS file.
 Show-PipelineInvolvement -PythonCmd $pythonCmd -ScenePath $scenePath -Renderer $rendererChoice
 
 ## 10. RUN ACCELERATED PIPELINE (runtime hardware detection - not hardcoded)
 Write-Section "Render + encode"
 Write-Host "==> Running accelerated pipeline (renderer arg: $rendererChoice)..." -ForegroundColor Yellow
-& $pythonCmd (Join-Path $PSScriptRoot "scripts\pipeline.py") @pipelineArgs
-if ($LASTEXITCODE -ne 0) { throw "Pipeline failed." }
+$pythonExe = Resolve-PythonExe -PythonCmd $pythonCmd
+$pipelineScript = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "scripts\pipeline.py"))
+$prevNative = $null
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+    $prevNative = $PSNativeCommandUseErrorActionPreference
+    $PSNativeCommandUseErrorActionPreference = $false
+}
+try {
+    $allArgs = @($pipelineScript) + @($pipelineArgs)
+    & $pythonExe @allArgs
+    if ($LASTEXITCODE -ne 0) { throw "Pipeline failed (exit $LASTEXITCODE)." }
+} finally {
+    if ($null -ne $prevNative) {
+        $PSNativeCommandUseErrorActionPreference = $prevNative
+    }
+}
 
 Write-Section "Done"
 Write-Host "==> Animation ready: $outputDir\animation.mp4" -ForegroundColor Green

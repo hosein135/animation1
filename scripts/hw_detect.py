@@ -473,23 +473,34 @@ def format_involvement_report(
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Detect GPUs/CPU and print involvement for this project")
-    p.add_argument("--scene", type=Path, default=None, help="Path to scene.json (optional)")
+    p.add_argument(
+        "--scene",
+        type=Path,
+        default=None,
+        help="Path to scene.json (optional). Also accepts SCENE_JSON env var.",
+    )
     p.add_argument(
         "--renderer",
         choices=("auto", "gpu", "blender"),
-        default="auto",
-        help="Renderer mode used to decide involvement",
+        default=None,
+        help="Renderer mode used to decide involvement (default: auto or RENDERER env)",
     )
     p.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     args = p.parse_args()
 
+    scene_path = args.scene
+    if scene_path is None and os.environ.get("SCENE_JSON"):
+        scene_path = Path(os.environ["SCENE_JSON"])
+
+    renderer = args.renderer or os.environ.get("ANIM_RENDERER") or "auto"
+
     scene: dict = {}
-    if args.scene and args.scene.is_file():
-        with args.scene.open(encoding="utf-8") as f:
+    if scene_path and Path(scene_path).is_file():
+        with Path(scene_path).open(encoding="utf-8") as f:
             scene = json.load(f)
 
     hw = detect()
-    resolved = resolve_renderer(scene, args.renderer)
+    resolved = resolve_renderer(scene, renderer)
     if args.json:
         payload = {
             "summary": hw.summary(),
