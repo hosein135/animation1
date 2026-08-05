@@ -3,12 +3,11 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import sys
 from pathlib import Path
-
-import pandas as pd
 
 
 def main() -> int:
@@ -32,21 +31,34 @@ def main() -> int:
             print(f"scene.json missing key: {key}", file=sys.stderr)
             return 1
 
-    df = pd.read_csv(csv_path)
     needed_cols = {"frame_label", "value", "r", "g", "b"}
-    missing = needed_cols - set(df.columns)
-    if missing:
-        print(f"values.csv missing columns: {sorted(missing)}", file=sys.stderr)
-        return 1
-    if df.empty:
-        print("values.csv has no rows", file=sys.stderr)
-        return 1
-    if (df["value"] < 0).any():
-        print("values.csv contains negative values", file=sys.stderr)
-        return 1
+    with csv_path.open(encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames is None:
+            print("values.csv has no header", file=sys.stderr)
+            return 1
+        missing = needed_cols - set(reader.fieldnames)
+        if missing:
+            print(f"values.csv missing columns: {sorted(missing)}", file=sys.stderr)
+            return 1
+
+        rows = list(reader)
+        if not rows:
+            print("values.csv has no rows", file=sys.stderr)
+            return 1
+
+        for i, row in enumerate(rows, start=2):
+            try:
+                value = float(row["value"])
+            except (TypeError, ValueError):
+                print(f"values.csv row {i}: invalid value", file=sys.stderr)
+                return 1
+            if value < 0:
+                print("values.csv contains negative values", file=sys.stderr)
+                return 1
 
     total_frames = int(round(float(scene["fps"]) * float(scene["duration_seconds"])))
-    print(f"Data OK: {len(df)} series points, {total_frames} frames @ {scene['fps']} fps")
+    print(f"Data OK: {len(rows)} series points, {total_frames} frames @ {scene['fps']} fps")
     return 0
 
 

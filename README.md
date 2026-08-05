@@ -33,7 +33,7 @@ nix run .#animate    # validate data → Blender frames → FFmpeg MP4
 | Path | Role |
 |------|------|
 | `run.sh` | Bootstrap + launch |
-| `flake.nix` | Pinned nixos-25.05 env (Python/pandas/numpy, Blender, FFmpeg) |
+| `flake.nix` | Pinned nixos-25.05 env (Python, Blender, FFmpeg) |
 | `data/scene.json` | FPS, resolution, camera, lighting |
 | `data/values.csv` | Monthly values + RGB colors for each bar |
 | `scripts/validate_data.py` | CSV/JSON checks |

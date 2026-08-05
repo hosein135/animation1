@@ -23,10 +23,7 @@
         let
           pkgs = import nixpkgs { inherit system; };
 
-          pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-            pandas
-            numpy
-          ]);
+          pythonEnv = pkgs.python3;
 
           # Ship scripts + sample data inside the derivation for reproducible runs.
           projectSrc = pkgs.runCommand "animation-src" { } ''
@@ -103,15 +100,11 @@
       devShells = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-            pandas
-            numpy
-          ]);
         in
         {
           default = pkgs.mkShell {
             packages = [
-              pythonEnv
+              pkgs.python3
               pkgs.blender
               pkgs.ffmpeg
               pkgs.curl
