@@ -1,0 +1,38 @@
+{
+  "name": "Sailboat",
+  "type": "group",
+  "location": [0, 0, 0],
+  "children": [
+    {
+      "type": "sphere",
+      "name": "Distant sailboat hull",
+      "location": [0.6, 13.5, 0.09],
+      "scale": [0.44, 0.12, 0.09],
+      "material": "Warm ivory plumage"
+    },
+    {
+      "type": "rod",
+      "name": "Sailboat mast",
+      "from": [0.6, 13.5, 0.1],
+      "to": [0.6, 13.5, 1.03],
+      "radius": 0.012,
+      "material": "Palm trunks"
+    },
+    {
+      "type": "mesh",
+      "name": "Little coral sail",
+      "verts": [[0.61, 13.5, 0.97], [0.61, 13.5, 0.23], [1.07, 13.5, 0.23]],
+      "faces": [[0, 1, 2]],
+      "material": "Festival coral",
+      "bevel": 0.01
+    },
+    {
+      "type": "mesh",
+      "name": "Little cream sail",
+      "verts": [[0.56, 13.5, 0.87], [0.56, 13.5, 0.23], [0.2, 13.5, 0.23]],
+      "faces": [[0, 1, 2]],
+      "material": "Warm ivory plumage",
+      "bevel": 0.01
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Concurrent animation pipeline — pelican-on-bicycle coastal parade.
+Concurrent animation pipeline — declarative Blender scene → frames → MP4.
 
 Deps provisioned by platform:
   Windows (run.ps1 / run.cmd) — winget: Python, Blender, FFmpeg
@@ -390,7 +390,7 @@ def main() -> int:
 
     print(format_involvement_report(hw, scene, renderer))
 
-    print("==> Blender pelican parade (GPU/CPU + parallel workers)...")
+    print("==> Building & rendering scene (GPU/CPU + parallel workers)...")
     render_meta = run_blender_parallel(data_dir, output_dir, scene, hw, engine)
     timings["build"] = float(render_meta["build_s"])
     timings["render"] = float(render_meta["render_s"])

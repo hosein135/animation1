@@ -1,0 +1,39 @@
+{
+  "name": "Environment",
+  "type": "group",
+  "location": [0, 0, 0],
+  "children": [
+    { "type": "factory", "factory": "horizon_sky", "name": "HorizonSky", "params": { "distance": 20 } },
+    { "type": "factory", "factory": "golden_sun", "name": "LowGoldenSun", "params": {} },
+    { "type": "factory", "factory": "rolling_waves", "name": "Waves", "params": {} },
+    { "type": "factory", "factory": "sunset_clouds", "name": "Clouds", "params": {} },
+    { "ref": "sailboat", "name": "Sailboat" },
+    {
+      "type": "factory",
+      "factory": "beach_cabin",
+      "name": "CabinCoral",
+      "params": { "x": -3.7, "y": 5.2, "color": "Festival coral" }
+    },
+    {
+      "type": "factory",
+      "factory": "beach_cabin",
+      "name": "CabinTeal",
+      "params": { "x": -5.1, "y": 5.5, "color": "Turquoise enamel" }
+    },
+    {
+      "type": "factory",
+      "factory": "palm_tree",
+      "name": "PalmL",
+      "params": { "x": -4.6, "y": 3.7, "height": 4.5 }
+    },
+    {
+      "type": "factory",
+      "factory": "palm_tree",
+      "name": "PalmR",
+      "params": { "x": 4.5, "y": 5, "height": 4.9 }
+    },
+    { "type": "factory", "factory": "festival_flags", "name": "FestivalFlags", "params": {} },
+    { "type": "factory", "factory": "confetti", "name": "Confetti", "params": { "count": 30, "seed": 14 } },
+    { "type": "factory", "factory": "seashells", "name": "Seashells", "params": {} }
+  ]
+}

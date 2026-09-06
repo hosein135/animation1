@@ -1,25 +1,136 @@
 {
-  "title": "Pelican Coastal Parade — Bicycle Ride",
+  "title": "Pelican Coastal Parade - Bicycle Ride",
+  "builder": "declarative",
+  "seed": 14,
   "fps": 14,
   "duration_seconds": 4,
   "resolution": [1920, 1080],
   "background_color": [0.39, 0.60, 0.74, 1.0],
+  "background_strength": 0.24,
   "camera": {
+    "name": "ParadeCamera",
     "location": [5.6, -21.0, 6.3],
     "look_at": [0.0, 0.6, 2.7],
     "lens": 50,
-    "ortho_scale": 9.4
+    "ortho_scale": 9.4,
+    "type": "ORTHO"
   },
-  "lighting": {
-    "sun_energy": 850,
-    "fill_energy": 450,
-    "rim_energy": 1000
-  },
-  "ride": {
+  "params": {
     "x_start": -3.2,
     "x_end": 3.8,
     "wheel_radius": 0.91
   },
+  "objects": [
+    {
+      "ref": "ride_root",
+      "name": "RideRoot",
+      "children": [
+        { "ref": "bicycle", "name": "Bicycle" },
+        { "ref": "pelican", "name": "Pelican" }
+      ]
+    },
+    { "ref": "boardwalk", "name": "Boardwalk" },
+    { "ref": "environment", "name": "Environment" }
+  ],
+  "lights": [
+    {
+      "type": "light",
+      "name": "Warm setting sun",
+      "location": [-5, -3, 8],
+      "energy": 850,
+      "size": 4,
+      "color": [1, 0.77, 0.53],
+      "aim_at": [0, 0, 2.3]
+    },
+    {
+      "type": "light",
+      "name": "Cool sky fill",
+      "location": [4, -5, 7],
+      "energy": 450,
+      "size": 5,
+      "color": [0.65, 0.84, 1],
+      "aim_at": [0, 0, 2.3]
+    },
+    {
+      "type": "light",
+      "name": "Golden rim",
+      "location": [-2, 6, 6],
+      "energy": 1000,
+      "size": 3,
+      "color": [1, 0.59, 0.29],
+      "aim_at": [0, 0, 2.3]
+    }
+  ],
+  "actions": [
+    {
+      "action": "translate",
+      "target": "RideRoot",
+      "from": [-3.2, 0, 0],
+      "to": [3.8, 0, 0]
+    },
+    {
+      "action": "spin",
+      "target": "RearWheel",
+      "distance": 7.0,
+      "radius": 0.91,
+      "axis": 1,
+      "invert": true
+    },
+    {
+      "action": "spin",
+      "target": "FrontWheel",
+      "distance": 7.0,
+      "radius": 0.91,
+      "axis": 1,
+      "invert": true
+    },
+    {
+      "action": "bob",
+      "target": "Plump pelican body",
+      "axis": 2,
+      "amplitude": 0.045,
+      "cycles": 6.0
+    },
+    {
+      "action": "flutter",
+      "target": "Scarf flutter",
+      "axis": 2,
+      "amplitude": 0.18,
+      "cycles": 8.0
+    },
+    {
+      "action": "bob_matching",
+      "prefix": "Party balloon",
+      "axis": 2,
+      "amplitude": 0.08,
+      "cycles": 5.0,
+      "steps": 5
+    },
+    {
+      "action": "follow_axis",
+      "target": "ParadeCamera",
+      "axis": 0,
+      "base": [5.6, -21.0, 6.3],
+      "values": [-1.12, 1.33]
+    },
+    {
+      "action": "look_at",
+      "target": "ParadeCamera",
+      "locations": [
+        [4.48, -21.0, 6.3],
+        [6.93, -21.0, 6.3]
+      ],
+      "points": [
+        [-3.2, 0.6, 2.7],
+        [3.8, 0.6, 2.7]
+      ]
+    },
+    {
+      "action": "set_interpolation",
+      "targets": ["RideRoot", "RearWheel", "FrontWheel", "ParadeCamera"],
+      "mode": "LINEAR"
+    }
+  ],
   "acceleration": {
     "renderer": "blender",
     "blender_engine": "eevee",

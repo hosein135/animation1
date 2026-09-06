@@ -1,0 +1,29 @@
+{
+  "name": "Boardwalk",
+  "type": "group",
+  "location": [0, 0, 0],
+  "children": [
+    {
+      "type": "factory",
+      "factory": "boardwalk_planks",
+      "name": "BoardwalkPlanks",
+      "params": { "count": 60 }
+    },
+    {
+      "type": "box",
+      "name": "Beach sand",
+      "location": [0, 7, -0.04],
+      "scale": [120, 9, 0.08],
+      "material": "Peach sand",
+      "bevel": 0.0
+    },
+    {
+      "type": "box",
+      "name": "Ocean surface",
+      "location": [0, 55, -0.018],
+      "scale": [180, 90, 0.02],
+      "material": "Ocean turquoise",
+      "bevel": 0.0
+    }
+  ]
+}

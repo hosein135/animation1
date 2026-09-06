@@ -1,0 +1,232 @@
+{
+  "name": "Bicycle",
+  "type": "group",
+  "location": [0, 0, 0],
+  "children": [
+    {
+      "type": "factory",
+      "factory": "bicycle_wheel",
+      "name": "RearWheel",
+      "params": { "label": "Rear", "center": [-1.35, 0, 1.02] }
+    },
+    {
+      "type": "factory",
+      "factory": "bicycle_wheel",
+      "name": "FrontWheel",
+      "params": { "label": "Front", "center": [1.4, 0, 1.02] }
+    },
+    {
+      "type": "rod",
+      "name": "Seat stay L",
+      "from": [-1.35, -0.13, 1.02],
+      "to": [-0.64, -0.08, 2.27],
+      "radius": 0.055,
+      "material": "Turquoise enamel"
+    },
+    {
+      "type": "rod",
+      "name": "Seat stay R",
+      "from": [-1.35, 0.13, 1.02],
+      "to": [-0.64, 0.08, 2.27],
+      "radius": 0.055,
+      "material": "Turquoise enamel"
+    },
+    {
+      "type": "rod",
+      "name": "Enamel frame tube B",
+      "from": [-0.64, 0, 2.27],
+      "to": [-0.2, 0, 1.05],
+      "radius": 0.065,
+      "material": "Turquoise enamel"
+    },
+    {
+      "type": "rod",
+      "name": "Chainstay L",
+      "from": [-0.2, -0.13, 1.05],
+      "to": [-1.35, -0.13, 1.02],
+      "radius": 0.055,
+      "material": "Turquoise enamel"
+    },
+    {
+      "type": "rod",
+      "name": "Chainstay R",
+      "from": [-0.2, 0.13, 1.05],
+      "to": [-1.35, 0.13, 1.02],
+      "radius": 0.055,
+      "material": "Turquoise enamel"
+    },
+    {
+      "type": "rod",
+      "name": "Enamel frame tube D",
+      "from": [-0.64, 0, 2.27],
+      "to": [0.99, 0, 2.3],
+      "radius": 0.065,
+      "material": "Turquoise enamel"
+    },
+    {
+      "type": "rod",
+      "name": "Enamel frame tube E",
+      "from": [0.99, 0, 2.3],
+      "to": [-0.2, 0, 1.05],
+      "radius": 0.065,
+      "material": "Turquoise enamel"
+    },
+    {
+      "type": "rod",
+      "name": "Front fork L",
+      "from": [1.01, -0.13, 2.33],
+      "to": [1.4, -0.13, 1.02],
+      "radius": 0.043,
+      "material": "Turquoise enamel"
+    },
+    {
+      "type": "rod",
+      "name": "Front fork R",
+      "from": [1.01, 0.13, 2.33],
+      "to": [1.4, 0.13, 1.02],
+      "radius": 0.043,
+      "material": "Turquoise enamel"
+    },
+    {
+      "type": "rod",
+      "name": "Seat post",
+      "from": [-0.64, 0, 2.27],
+      "to": [-0.72, 0, 2.54],
+      "radius": 0.04,
+      "material": "Brushed aluminum"
+    },
+    {
+      "type": "sphere",
+      "name": "Leather saddle",
+      "location": [-0.72, 0, 2.55],
+      "scale": [0.38, 0.22, 0.09],
+      "material": "Deep teal leather"
+    },
+    {
+      "type": "rod",
+      "name": "Steering stem",
+      "from": [0.99, 0, 2.3],
+      "to": [0.90, 0, 2.72],
+      "radius": 0.045,
+      "material": "Brushed aluminum"
+    },
+    {
+      "type": "path",
+      "name": "Sweeping handlebar",
+      "points": [
+        [0.9, -0.46, 2.69],
+        [1.02, -0.29, 2.82],
+        [0.9, 0, 2.76],
+        [1.02, 0.29, 2.82],
+        [0.9, 0.46, 2.69]
+      ],
+      "radius": 0.037,
+      "material": "Brushed aluminum"
+    },
+    {
+      "type": "sphere",
+      "name": "Bicycle bell",
+      "location": [0.91, -0.28, 2.87],
+      "scale": [0.095, 0.095, 0.065],
+      "material": "Brushed aluminum"
+    },
+    {
+      "type": "torus",
+      "name": "Chainring",
+      "location": [-0.2, -0.15, 1.05],
+      "major": 0.225,
+      "minor": 0.026,
+      "material": "Brushed aluminum"
+    },
+    {
+      "type": "path",
+      "name": "Bicycle chain",
+      "points": [
+        [-1.35, -0.17, 1.13],
+        [-0.22, -0.17, 1.29],
+        [0.035, -0.17, 1.07],
+        [-0.19, -0.17, 0.82],
+        [-1.35, -0.17, 0.91],
+        [-1.45, -0.17, 1.02],
+        [-1.35, -0.17, 1.13]
+      ],
+      "radius": 0.017,
+      "material": "Deep teal leather"
+    },
+    {
+      "type": "rod",
+      "name": "Hand grip L",
+      "from": [0.90, -0.37, 2.7],
+      "to": [0.87, -0.57, 2.65],
+      "radius": 0.058,
+      "material": "Deep teal leather"
+    },
+    {
+      "type": "rod",
+      "name": "Hand grip R",
+      "from": [0.90, 0.37, 2.7],
+      "to": [0.87, 0.57, 2.65],
+      "radius": 0.058,
+      "material": "Deep teal leather"
+    },
+    {
+      "type": "rod",
+      "name": "Crank L",
+      "from": [-0.2, -0.23, 1.05],
+      "to": [0.03, -0.23, 0.85],
+      "radius": 0.034,
+      "material": "Brushed aluminum"
+    },
+    {
+      "type": "rod",
+      "name": "Pedal L",
+      "from": [0.03, -0.35, 0.85],
+      "to": [0.03, -0.11, 0.85],
+      "radius": 0.055,
+      "material": "Deep teal leather"
+    },
+    {
+      "type": "rod",
+      "name": "Crank R",
+      "from": [-0.2, 0.23, 1.05],
+      "to": [-0.43, 0.23, 1.25],
+      "radius": 0.034,
+      "material": "Brushed aluminum"
+    },
+    {
+      "type": "rod",
+      "name": "Pedal R",
+      "from": [-0.43, 0.11, 1.25],
+      "to": [-0.43, 0.35, 1.25],
+      "radius": 0.055,
+      "material": "Deep teal leather"
+    },
+    {
+      "type": "factory",
+      "factory": "woven_basket",
+      "name": "FlowerBasket",
+      "params": { "center": [1.64, 0.13, 2.43], "seed": 14 }
+    },
+    {
+      "type": "sphere",
+      "name": "Brass bicycle headlamp",
+      "location": [1.37, -0.12, 2.15],
+      "scale": [0.14, 0.13, 0.13],
+      "material": "Sunshine"
+    },
+    {
+      "type": "sphere",
+      "name": "Headlamp glass",
+      "location": [1.47, -0.16, 2.15],
+      "scale": [0.08, 0.10, 0.10],
+      "material": "Warm ivory plumage"
+    },
+    {
+      "type": "sphere",
+      "name": "Rear ruby reflector",
+      "location": [-1.96, -0.05, 2.02],
+      "scale": [0.07, 0.08, 0.1],
+      "material": "Festival coral"
+    }
+  ]
+}

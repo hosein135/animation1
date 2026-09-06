@@ -2,8 +2,8 @@
 """
 Blender headless renderer — GPU-first (OptiX → CUDA → HIP → EEVEE), CPU hybrid.
 
-Builds the pelican-on-bicycle coastal parade (simonw pelican final look) with
-ride animation, then renders frame slices for FFmpeg.
+Builds a declarative scene from data/scene.json + data/objects/, then renders
+frame slices for FFmpeg.
 
 Modes:
   build   — construct scene + animation, save .blend (no frames)
@@ -146,7 +146,7 @@ def configure_eevee(scn, accel: dict | None = None) -> str:
             scn.render.engine = engine
             eevee = getattr(scn, "eevee", None)
             if eevee is not None:
-                # Lean settings: stylized pelican reads well with fewer TAA samples.
+                # Lean settings: stylized scenes read well with fewer TAA samples.
                 for attr, val in (
                     ("taa_render_samples", samples),
                     ("taa_samples", samples),
@@ -253,10 +253,10 @@ def build_scene(data_dir: Path) -> dict:
     scripts_dir = Path(__file__).resolve().parent
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
-    from pelican_build import build_pelican_animation
+    from scene_builder import build_animation
 
     scene_cfg = load_scene(data_dir / "scene.json")
-    build_pelican_animation(scene_cfg)
+    build_animation(data_dir, scene_cfg)
     return scene_cfg
 
 
