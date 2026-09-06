@@ -21,7 +21,6 @@ import shutil
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 _SCRIPTS = Path(__file__).resolve().parent
@@ -30,6 +29,7 @@ if str(_SCRIPTS) not in sys.path:
 
 from encode_video import encode_frames  # noqa: E402
 from hw_detect import HardwareProfile, detect, format_involvement_report  # noqa: E402
+from progress import ProgressBar, count_rendered_frames, raise_process_priority  # noqa: E402
 
 
 def _gpu_deps_available() -> bool:
@@ -89,6 +89,14 @@ def run_gpu(data_dir: Path, output_dir: Path) -> None:
     render_animation(data_dir, output_dir, pipe_to_ffmpeg=True)
 
 
+def _blender_base_args(blender: str) -> list[str]:
+    """Faster headless startup: skip user addons/audio."""
+    args = [blender, "--background", "--factory-startup"]
+    # Blender accepts -noaudio on most builds; ignore if the binary rejects it later.
+    args.append("-noaudio")
+    return args
+
+
 def run_blender_parallel(
     data_dir: Path,
     output_dir: Path,
@@ -107,7 +115,9 @@ def run_blender_parallel(
     total = _frame_count(scene)
     blend = output_dir / "scene.blend"
     frames_dir = output_dir / "frames"
+    logs_dir = output_dir / "logs"
     frames_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir.mkdir(parents=True, exist_ok=True)
 
     for old in frames_dir.glob("frame_*"):
         old.unlink(missing_ok=True)
@@ -116,10 +126,9 @@ def run_blender_parallel(
     nvidia_n = len(hw.nvidia_gpus)
     pin_gpus = resolved_engine == "cycles" and nvidia_n >= 2
 
-    def blender_cmd(*extra: str) -> list[str]:
+    def extra_cmd(*extra: str) -> list[str]:
         return [
-            blender,
-            "--background",
+            *_blender_base_args(blender),
             "--python",
             str(render_py),
             "--",
@@ -134,70 +143,102 @@ def run_blender_parallel(
             *extra,
         ]
 
-    # Build once with all GPUs visible (scene construction is CPU-bound).
+    raise_process_priority()
     print(f"==> Blender build → {blend}")
     print(
-        f"==> Perf plan: engine={resolved_engine} workers={workers} "
-        f"threads/worker={threads} nvidia={nvidia_n} pin_gpus={pin_gpus}"
+        f"==> Perf plan: engine={resolved_engine} multiprocess={workers} "
+        f"threads/worker={threads} nvidia={nvidia_n} pin_gpus={pin_gpus} "
+        f"cpu={hw.cpu_count}"
     )
     build_env = os.environ.copy()
-    # Prefer discrete GPU for OpenGL/EEVEE on Windows mixed systems.
     build_env.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
-    subprocess.run(
-        blender_cmd("--mode", "build", "--blend", str(blend)),
-        check=True,
-        env=build_env,
-    )
+    build_log = logs_dir / "build.log"
+    with build_log.open("wb") as logf:
+        subprocess.run(
+            extra_cmd("--mode", "build", "--blend", str(blend)),
+            check=True,
+            env=build_env,
+            stdout=logf,
+            stderr=subprocess.STDOUT,
+        )
 
     ranges = _chunk_ranges(total, workers)
-    print(f"==> Blender parallel render: {workers} worker(s), ranges={ranges}")
+    print(f"==> Multiprocess render: {workers} Blender process(es), ranges={ranges}")
+    print("==> Progress (live frame files on disk):")
 
-    def worker(idx: int, fs: int, fe: int) -> tuple[int, int, float]:
-        t0 = time.perf_counter()
-        env = os.environ.copy()
-        env.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
-        # Pin Cycles workers to distinct NVIDIA GPUs when we have several.
-        if pin_gpus:
-            gpu_id = str(idx % nvidia_n)
-            env["CUDA_VISIBLE_DEVICES"] = gpu_id
-            env["HIP_VISIBLE_DEVICES"] = gpu_id
-            print(f"  worker frames {fs}-{fe} → GPU {gpu_id}")
-        elif nvidia_n == 1 and resolved_engine == "cycles":
-            env["CUDA_VISIBLE_DEVICES"] = "0"
-        cmd = [
-            blender,
-            "--background",
-            str(blend),
-            "--python",
-            str(render_py),
-            "--",
-            "--data-dir",
-            str(data_dir),
-            "--output-dir",
-            str(output_dir),
-            "--mode",
-            "render",
-            "--blend",
-            str(blend),
-            "--frame-start",
-            str(fs),
-            "--frame-end",
-            str(fe),
-            "--engine",
-            resolved_engine,
-            "--threads",
-            str(threads),
-        ]
-        subprocess.run(cmd, check=True, env=env)
-        return fs, fe, time.perf_counter() - t0
+    procs: list[subprocess.Popen[bytes]] = []
+    log_handles: list = []
+    try:
+        for idx, (fs, fe) in enumerate(ranges):
+            env = os.environ.copy()
+            env.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
+            if pin_gpus:
+                gpu_id = str(idx % nvidia_n)
+                env["CUDA_VISIBLE_DEVICES"] = gpu_id
+                env["HIP_VISIBLE_DEVICES"] = gpu_id
+            elif nvidia_n == 1 and resolved_engine == "cycles":
+                env["CUDA_VISIBLE_DEVICES"] = "0"
+            cmd = [
+                *_blender_base_args(blender),
+                str(blend),
+                "--python",
+                str(render_py),
+                "--",
+                "--data-dir",
+                str(data_dir),
+                "--output-dir",
+                str(output_dir),
+                "--mode",
+                "render",
+                "--blend",
+                str(blend),
+                "--frame-start",
+                str(fs),
+                "--frame-end",
+                str(fe),
+                "--engine",
+                resolved_engine,
+                "--threads",
+                str(threads),
+            ]
+            logf = (logs_dir / f"worker-{idx}.log").open("wb")
+            log_handles.append(logf)
+            proc = subprocess.Popen(cmd, env=env, stdout=logf, stderr=subprocess.STDOUT)
+            raise_process_priority(proc.pid)
+            procs.append(proc)
 
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [
-            pool.submit(worker, i, fs, fe) for i, (fs, fe) in enumerate(ranges)
-        ]
-        for fut in as_completed(futures):
-            fs, fe, dt = fut.result()
-            print(f"  done frames {fs}-{fe} in {dt:.1f}s")
+        bar = ProgressBar(total, label="Render")
+        failures: list[str] = []
+        while True:
+            done = count_rendered_frames(frames_dir)
+            alive = sum(1 for p in procs if p.poll() is None)
+            bar.update(done, suffix=f"{alive} proc · {resolved_engine}")
+            if all(p.poll() is not None for p in procs):
+                break
+            time.sleep(0.25)
+
+        done = count_rendered_frames(frames_dir)
+        bar.update(min(done, total), suffix=f"0 proc · {resolved_engine}")
+        bar.close(suffix=f"{done} frames")
+
+        for idx, proc in enumerate(procs):
+            if proc.returncode not in (0, None):
+                failures.append(
+                    f"worker-{idx} exit {proc.returncode} (see {logs_dir / f'worker-{idx}.log'})"
+                )
+        if failures:
+            raise SystemExit("Blender workers failed:\n  " + "\n  ".join(failures))
+        if done < total:
+            raise SystemExit(f"Expected {total} frames, found {done} in {frames_dir}")
+    finally:
+        for p in procs:
+            if p.poll() is None:
+                p.kill()
+        for fh in log_handles:
+            try:
+                fh.close()
+            except Exception:
+                pass
 
 
 def main() -> int:
@@ -267,7 +308,13 @@ def main() -> int:
         print("==> Blender pelican parade (GPU/CPU + parallel workers)...")
         run_blender_parallel(data_dir, output_dir, scene, hw, engine)
         print("==> Encoding (NVENC → QSV → libx264)...")
-        codec = encode_frames(output_dir / "frames", output_dir / "animation.mp4", scene, hw)
+        codec = encode_frames(
+            output_dir / "frames",
+            output_dir / "animation.mp4",
+            scene,
+            hw,
+            expected_frames=_frame_count(scene),
+        )
         print(f"==> Codec: {codec}")
 
     dt = time.perf_counter() - t0

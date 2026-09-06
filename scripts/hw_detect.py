@@ -60,13 +60,12 @@ class HardwareProfile:
             # CPU Cycles: heavy per process — keep moderate parallelism
             return max(1, min(threads // 2, 6))
 
-        # EEVEE / auto: GPU raster is fast; more processes keep the card fed.
+        # EEVEE / auto: GPU raster is fast; more OS processes keep the card fed.
         if self.nvidia_gpus or self.discrete_gpu_count:
-            # Cap by threads so CPU orchestration/BVH doesn't starve.
-            return max(2, min(threads, 8 if len(self.nvidia_gpus) <= 1 else len(self.nvidia_gpus) * 3))
+            return max(2, min(threads, 12 if len(self.nvidia_gpus) <= 1 else len(self.nvidia_gpus) * 4))
         if self.intel_gpus:
-            return max(2, min(threads // 2, 4))
-        return max(1, min(threads, 6))
+            return max(2, min(max(2, threads // 2), 6))
+        return max(1, min(threads, 8))
 
     @property
     def recommended_blender_workers(self) -> int:

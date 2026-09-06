@@ -13,8 +13,7 @@ output/*.mp4
 output/*.png
 output/*.jpg
 output/*.blend
-output/*.blend1
-.vfox.toml
+output/logs/
 
 # Editor / OS
 .DS_Store

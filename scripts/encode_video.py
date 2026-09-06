@@ -8,6 +8,7 @@ import json
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 # Allow `python scripts/encode_video.py` and Blender-adjacent imports.
@@ -123,15 +124,18 @@ def build_ffmpeg_cmd(
     codec: str,
     extra: list[str],
     hw: HardwareProfile,
+    *,
+    progress_pipe: bool = False,
 ) -> list[str]:
     ffmpeg = hw.ffmpeg_path or shutil.which("ffmpeg") or "ffmpeg"
-    cmd = [
-        ffmpeg,
-        "-y",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-stats",
+    cmd = [ffmpeg, "-y", "-hide_banner", "-loglevel", "error"]
+    if progress_pipe:
+        cmd += ["-nostats", "-progress", "pipe:1"]
+    else:
+        cmd += ["-stats"]
+    cmd += [
+        "-threads",
+        "0",
         "-framerate",
         str(fps),
         "-i",
@@ -148,30 +152,77 @@ def build_ffmpeg_cmd(
     return cmd
 
 
+def _run_ffmpeg_with_progress(cmd: list[str], expected_frames: int, codec: str) -> None:
+    from progress import ProgressBar
+
+    bar = ProgressBar(max(1, expected_frames), label="Encode")
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    assert proc.stdout is not None
+    err_box: list[str] = []
+
+    def _drain_err() -> None:
+        if proc.stderr:
+            err_box.append(proc.stderr.read())
+
+    err_thread = threading.Thread(target=_drain_err, daemon=True)
+    err_thread.start()
+    try:
+        for raw in proc.stdout:
+            line = raw.strip()
+            if line.startswith("frame="):
+                try:
+                    frame = int(line.split("=", 1)[1])
+                except ValueError:
+                    continue
+                bar.update(min(frame, expected_frames), suffix=codec)
+            elif line == "progress=end":
+                break
+        code = proc.wait()
+        err_thread.join(timeout=5)
+        err = err_box[0] if err_box else ""
+        if code != 0:
+            bar.close(suffix="failed")
+            raise subprocess.CalledProcessError(code, cmd, output=err)
+        bar.close(suffix=codec)
+    except Exception:
+        if proc.poll() is None:
+            proc.kill()
+        raise
+
+
 def encode_frames(
     frames_dir: Path,
     output: Path,
     scene: dict,
     hw: HardwareProfile | None = None,
+    expected_frames: int | None = None,
 ) -> str:
     hw = hw or detect()
     fps = int(scene["fps"])
     codec, extra = _pick_codec(scene, hw)
     pattern = resolve_frame_pattern(frames_dir)
     output.parent.mkdir(parents=True, exist_ok=True)
+    total = expected_frames or max(1, len(list(frames_dir.glob("frame_*"))))
 
-    cmd = build_ffmpeg_cmd(pattern, output, fps, codec, extra, hw)
+    cmd = build_ffmpeg_cmd(pattern, output, fps, codec, extra, hw, progress_pipe=True)
     print(f"Encode: {codec} | {' '.join(cmd)}")
     try:
-        subprocess.run(cmd, check=True)
+        _run_ffmpeg_with_progress(cmd, total, codec)
     except subprocess.CalledProcessError:
         if codec == "libx264":
             raise
         print(f"Encode with {codec} failed — falling back to libx264")
         codec, extra = "libx264", _x264_extra(scene.get("output", {}))
-        cmd = build_ffmpeg_cmd(pattern, output, fps, codec, extra, hw)
+        cmd = build_ffmpeg_cmd(pattern, output, fps, codec, extra, hw, progress_pipe=True)
         print(f"Encode: {codec} | {' '.join(cmd)}")
-        subprocess.run(cmd, check=True)
+        _run_ffmpeg_with_progress(cmd, total, codec)
     return codec
 
 

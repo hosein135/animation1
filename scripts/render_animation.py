@@ -220,6 +220,11 @@ def apply_render_settings(
     except Exception:
         pass
 
+    try:
+        scn.render.use_compositing = False
+        scn.render.use_sequencer = False
+    except Exception:
+        pass
     samples = samples_override
     if samples is None:
         samples = int(accel.get("cycles_samples", out_cfg.get("cycles_samples", 32)))
@@ -277,11 +282,23 @@ def render_frames(
 
     frames_dir = output_dir / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
-    scn.render.filepath = str(frames_dir / "frame_")
+    fmt = scn.render.image_settings.file_format
+    ext = ".jpg" if fmt in ("JPEG", "JPG") else ".png"
+    try:
+        scn.render.use_file_extension = True
+        scn.render.use_overwrite = True
+        scn.render.use_placeholder = False
+    except Exception:
+        pass
 
-    print(f"Rendering frames {fs}-{fe} via {label} → {frames_dir}")
-    bpy.ops.render.render(animation=True)
-    print(f"Worker finished frames {fs}-{fe}")
+    # Per-frame stills so the orchestrator progress bar can count files live.
+    print(f"Rendering frames {fs}-{fe} via {label} → {frames_dir}", flush=True)
+    for f in range(fs, fe + 1):
+        scn.frame_set(f)
+        scn.render.filepath = str(frames_dir / f"frame_{f:04d}")
+        bpy.ops.render.render(write_still=True)
+        print(f"FRAME {f}{ext}", flush=True)
+    print(f"Worker finished frames {fs}-{fe}", flush=True)
 
 
 def main() -> int:

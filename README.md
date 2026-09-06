@@ -15,11 +15,13 @@ CUDA does not replace Python/Blender for scene setup — it accelerates Cycles a
 
 | Mode | Workload |
 |------|----------|
-| `--renderer blender` + **EEVEE** (default) | Fast GPU raster, many parallel Blender workers, JPEG frames |
-| `--engine cycles` | OptiX/CUDA + CPU hybrid; **1 worker pinned per NVIDIA GPU** via `CUDA_VISIBLE_DEVICES` |
-| Encode | **NVENC** → **QSV** → threaded **libx264** |
+| `--renderer blender` + **EEVEE** (default) | Fast GPU raster, many parallel **Blender OS processes**, JPEG frames |
+| `--engine cycles` | OptiX/CUDA + CPU hybrid; **1 process pinned per NVIDIA GPU** via `CUDA_VISIBLE_DEVICES` |
+| Encode | **NVENC** → **QSV** → all-core **libx264** (`-threads 0`) |
 
-Workers/threads auto-scale from live CPU/GPU counts (`blender_workers: 0`). Override with `--workers N` or `data/scene.json`.
+Live **progress bars** on stderr: `Render` counts frame files as workers write them; `Encode` reads FFmpeg `-progress`.
+
+Workers/threads auto-scale from live CPU/GPU counts (`blender_workers: 0`). Override with `--workers N` or `data/scene.json`. Headless Blender uses `--factory-startup -noaudio` and raised process priority.
 
 ## Quick start
 
@@ -45,7 +47,7 @@ nix run .#animate -- --renderer blender --workers 2
 | `run.cmd` | Elevated launcher for `run.ps1` (same pattern as `windows_search/setup.cmd`) |
 | `run.ps1` | winget + vfox bootstrap, host inventory, pipeline |
 | `run.sh` / `flake.nix` | Nix store bootstrap |
-| `scripts/pipeline.py` | Orchestrator |
+| `scripts/progress.py` | Render/encode progress bars (stdlib) |
 | `scripts/hw_detect.py` | Runtime NVIDIA/NVENC/QSV/CPU detect |
 | `scripts/pelican_build.py` | Pelican + bicycle + coastal set + ride keyframes |
 | `scripts/render_animation.py` | Blender GPU + chunked workers |
