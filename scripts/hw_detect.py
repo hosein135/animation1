@@ -34,14 +34,56 @@ class HardwareProfile:
     qsv_skip_reason: str | None = None
 
     @property
+    def discrete_gpu_count(self) -> int:
+        """NVIDIA (+ AMD-like other) adapters usable for dedicated render workers."""
+        n = len(self.nvidia_gpus)
+        amd = [
+            g
+            for g in self.other_gpus
+            if re.search(r"(?i)amd|radeon|rx |instinct", g)
+            and not re.search(r"(?i)basic|virtual|microsoft", g)
+        ]
+        return max(n, len(amd) if not n else n)
+
+    def recommended_blender_workers_for(self, engine: str) -> int:
+        """Scale frame workers for the chosen engine without thrashing one GPU."""
+        engine = (engine or "auto").lower()
+        n_gpu = max(len(self.nvidia_gpus), 1 if self.discrete_gpu_count else 0)
+        threads = max(1, self.cpu_count)
+
+        if engine == "cycles":
+            # One Blender process per NVIDIA GPU (pinned via CUDA_VISIBLE_DEVICES).
+            if len(self.nvidia_gpus) >= 2:
+                return min(len(self.nvidia_gpus), max(1, threads // 2))
+            if self.nvidia_gpus:
+                return 1  # full card; extra processes fight for VRAM/context
+            # CPU Cycles: heavy per process — keep moderate parallelism
+            return max(1, min(threads // 2, 6))
+
+        # EEVEE / auto: GPU raster is fast; more processes keep the card fed.
+        if self.nvidia_gpus or self.discrete_gpu_count:
+            # Cap by threads so CPU orchestration/BVH doesn't starve.
+            return max(2, min(threads, 8 if len(self.nvidia_gpus) <= 1 else len(self.nvidia_gpus) * 3))
+        if self.intel_gpus:
+            return max(2, min(threads // 2, 4))
+        return max(1, min(threads, 6))
+
+    @property
     def recommended_blender_workers(self) -> int:
-        """Scale frame workers from live CPU/GPU counts."""
-        if len(self.nvidia_gpus) >= 2:
-            return min(len(self.nvidia_gpus), max(1, self.cpu_count // 2))
-        if self.nvidia_gpus:
-            # Single GPU: prefer 1-2 Blender processes to avoid context thrash.
-            return max(1, min(2, self.cpu_count))
-        return max(1, min(self.cpu_count, 8))
+        """Default worker count (EEVEE-oriented; pipeline passes engine when known)."""
+        return self.recommended_blender_workers_for("eevee")
+
+    def recommended_cpu_threads_per_worker(self, workers: int, engine: str) -> int:
+        """Divide logical CPUs across parallel Blender processes."""
+        workers = max(1, workers)
+        engine = (engine or "auto").lower()
+        # Leave a little headroom for the orchestrator / OS.
+        budget = max(1, self.cpu_count - 1)
+        per = max(1, budget // workers)
+        if engine == "cycles" and self.nvidia_gpus:
+            # Hybrid GPU+CPU tiles: give each Cycles worker plenty of CPU.
+            return max(per, max(2, self.cpu_count // max(1, workers)))
+        return per
 
     @property
     def recommended_io_workers(self) -> int:
@@ -302,7 +344,7 @@ def involvement_rows(
 
     codec, codec_why = _planned_codec(hw, scene, resolved)
     prefer = _prefer_encoder(scene)
-    engine = str(scene.get("acceleration", {}).get("blender_engine", "auto")).lower()
+    engine = str(scene.get("acceleration", {}).get("blender_engine", "eevee")).lower()
     prefer_cycles_gpu = bool(scene.get("acceleration", {}).get("prefer_cycles_gpu", False))
 
     rows: list[dict[str, str]] = []
@@ -326,10 +368,16 @@ def involvement_rows(
         if resolved == "gpu":
             roles.append("OpenGL render (ModernGL may place context on discrete GPU when available)")
         elif resolved == "blender":
-            if prefer_cycles_gpu or engine in ("auto", "cycles"):
-                roles.append("Blender Cycles GPU (CUDA/OptiX when Blender enables it)")
+            eng = str(scene.get("acceleration", {}).get("blender_engine", "eevee")).lower()
+            if eng == "eevee":
+                roles.append("Blender EEVEE GPU raster (parallel frame workers)")
+            elif prefer_cycles_gpu or eng in ("auto", "cycles"):
+                roles.append(
+                    "Blender Cycles GPU (OptiX/CUDA when available; "
+                    "1 worker pinned per NVIDIA GPU; CPU hybrid tiles)"
+                )
             else:
-                roles.append("Blender present but Cycles GPU not preferred (EEVEE/CPU path possible)")
+                roles.append("Blender present (EEVEE/CPU path possible)")
         if codec == "h264_nvenc":
             roles.append(f"encode via NVENC ({codec_why})")
         elif not hw.has_nvenc:
@@ -407,9 +455,11 @@ def involvement_rows(
         "pipeline orchestration (Python / process spawn)",
     ]
     if resolved == "blender":
+        eng = str(scene.get("acceleration", {}).get("blender_engine", "eevee")).lower()
         cpu_roles.append(
-            f"Blender workers up to ~{hw.recommended_blender_workers} "
-            "(CPU BVH / hybrid tiles even when Cycles uses GPU)"
+            f"Blender workers up to ~{hw.recommended_blender_workers_for(eng)} "
+            f"(engine={eng}; CPU threads split across workers; "
+            f"Cycles pins 1 process/NVIDIA GPU when multiple)"
         )
     if resolved == "gpu":
         cpu_roles.append("hosts ModernGL process + feeds raw frames to FFmpeg")
@@ -447,6 +497,12 @@ def format_involvement_report(
     resolved = renderer if renderer in ("gpu", "blender") else resolve_renderer(scene, "auto")
     codec, codec_why = _planned_codec(hw, scene, resolved)
 
+    engine = str(scene.get("acceleration", {}).get("blender_engine", "eevee")).lower()
+    prefer_cycles_gpu = bool(scene.get("acceleration", {}).get("prefer_cycles_gpu", False))
+    workers_hint = hw.recommended_blender_workers_for(
+        "cycles" if engine == "cycles" else "eevee"
+    )
+
     lines = [
         "=== Hardware inventory ===",
         f"  CPU:    {hw.cpu_name} ({hw.cpu_count} threads)",
@@ -457,7 +513,7 @@ def format_involvement_report(
         lines.append(f"  Other:  {', '.join(hw.other_gpus)}")
     lines += [
         f"  Caps:   CUDA={hw.has_cuda} OptiX={hw.has_optix} NVENC={hw.has_nvenc} QSV={hw.has_qsv}",
-        f"  Plan:   renderer={resolved} | encoder={codec} ({codec_why})",
+        f"  Plan:   renderer={resolved} engine={engine} workers≈{workers_hint} | encoder={codec} ({codec_why})",
         "=== Involvement (this run) ===",
     ]
     for row in involvement_rows(hw, scene, resolved):

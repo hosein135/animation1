@@ -52,17 +52,47 @@ def load_scene(path: Path) -> dict:
         return json.load(f)
 
 
-def configure_gpu_cycles(scn, samples: int) -> str:
+def configure_gpu_cycles(scn, samples: int, accel: dict | None = None) -> str:
     """Enable Cycles on OptiX/CUDA/HIP + CPU hybrid. Returns device label."""
     import bpy
 
+    accel = accel or {}
     scn.render.engine = "CYCLES"
-    scn.cycles.samples = samples
-    scn.cycles.use_denoising = True
     scn.cycles.device = "GPU"
 
-    # All CPU threads for BVH / hybrid tiles.
-    scn.render.threads_mode = "FIXED" if scn.render.threads else "AUTO"
+    # Adaptive sampling: stop early on clean tiles (big win on stylized scenes).
+    use_adaptive = bool(accel.get("cycles_adaptive", True))
+    if hasattr(scn.cycles, "use_adaptive_sampling"):
+        scn.cycles.use_adaptive_sampling = use_adaptive
+    if use_adaptive and hasattr(scn.cycles, "adaptive_threshold"):
+        scn.cycles.adaptive_threshold = float(accel.get("cycles_noise_threshold", 0.05))
+    if hasattr(scn.cycles, "adaptive_min_samples"):
+        scn.cycles.adaptive_min_samples = int(accel.get("cycles_min_samples", max(4, samples // 4)))
+
+    scn.cycles.samples = samples
+
+    # GPU denoiser when available (OptiX); skip if samples already high and user opts out.
+    use_denoise = bool(accel.get("cycles_denoise", True))
+    scn.cycles.use_denoising = use_denoise
+    if use_denoise:
+        for denoiser in ("OPTIX", "OPENIMAGEDENOISE", "NLM"):
+            try:
+                scn.cycles.denoiser = denoiser
+                break
+            except Exception:
+                continue
+
+    # Large tiles for GPU path tracing.
+    tile = int(accel.get("cycles_tile_size", 512))
+    for attr in ("tile_x", "tile_y"):
+        if hasattr(scn.cycles, attr):
+            setattr(scn.cycles, attr, tile)
+    if hasattr(scn.cycles, "tile_size"):
+        scn.cycles.tile_size = tile
+
+    # All CPU threads for BVH / hybrid tiles (unless FIXED was set by caller).
+    if scn.render.threads_mode != "FIXED":
+        scn.render.threads_mode = "AUTO"
 
     label = "CYCLES/CPU"
     try:
@@ -71,7 +101,7 @@ def configure_gpu_cycles(scn, samples: int) -> str:
         scn.cycles.device = "CPU"
         return label
 
-    # Prefer OptiX → CUDA → HIP → METAL → ONEAPI
+    # Prefer OptiX → CUDA → HIP → METAL → ONEAPI; enable every matching GPU + CPU.
     for compute in ("OPTIX", "CUDA", "HIP", "METAL", "ONEAPI"):
         try:
             prefs.compute_device_type = compute
@@ -81,14 +111,13 @@ def configure_gpu_cycles(scn, samples: int) -> str:
                 continue
             enabled = 0
             for d in devices:
-                # Use matching GPUs + CPUs for hybrid.
                 use = d.type in {compute, "CPU"}
                 d.use = use
                 if use and d.type != "CPU":
                     enabled += 1
             if enabled:
                 scn.cycles.device = "GPU"
-                label = f"CYCLES/{compute}+CPU"
+                label = f"CYCLES/{compute}+CPU({enabled} GPU)"
                 print(f"Blender Cycles devices ({compute}):")
                 for d in devices:
                     print(f"  [{[' ', 'x'][bool(d.use)]}] {d.name} ({d.type})")
@@ -97,28 +126,48 @@ def configure_gpu_cycles(scn, samples: int) -> str:
             print(f"Cycles {compute} unavailable: {exc}")
             continue
 
+    # CPU-only fallback: enable every CPU device entry.
+    try:
+        prefs.compute_device_type = "NONE"
+        prefs.get_devices()
+        for d in list(getattr(prefs, "devices", [])):
+            d.use = d.type == "CPU"
+    except Exception:
+        pass
     scn.cycles.device = "CPU"
     return "CYCLES/CPU"
 
 
-def configure_eevee(scn) -> str:
+def configure_eevee(scn, accel: dict | None = None) -> str:
+    accel = accel or {}
+    samples = int(accel.get("eevee_samples", 8))
     for engine in ("BLENDER_EEVEE_NEXT", "BLENDER_EEVEE"):
         try:
             scn.render.engine = engine
-            # Best-effort GPU/viewport settings across Blender versions.
             eevee = getattr(scn, "eevee", None)
             if eevee is not None:
+                # Lean settings: stylized pelican reads well with fewer TAA samples.
                 for attr, val in (
-                    ("taa_render_samples", 16),
+                    ("taa_render_samples", samples),
+                    ("taa_samples", samples),
                     ("use_gtao", True),
                     ("use_bloom", False),
+                    ("use_ssr", False),
+                    ("use_motion_blur", False),
+                    ("use_raytracing", False),
+                    ("use_shadows", True),
+                    ("shadow_ray_count", 1),
+                    ("shadow_step_count", 2),
                 ):
                     if hasattr(eevee, attr):
-                        setattr(eevee, attr, val)
-            return f"EEVEE/{engine}"
+                        try:
+                            setattr(eevee, attr, val)
+                        except Exception:
+                            pass
+            return f"EEVEE/{engine}(taa={samples})"
         except Exception:
             continue
-    return configure_gpu_cycles(scn, samples=32)
+    return configure_gpu_cycles(scn, samples=24, accel=accel)
 
 
 def apply_render_settings(
@@ -153,39 +202,46 @@ def apply_render_settings(
     fmt = out_cfg.get("frame_format", "JPEG")
     scn.render.image_settings.file_format = fmt
     if fmt in ("JPEG", "JPG"):
-        scn.render.image_settings.quality = int(out_cfg.get("jpeg_quality", 92))
+        scn.render.image_settings.quality = int(out_cfg.get("jpeg_quality", 90))
     if fmt == "PNG":
-        scn.render.image_settings.compression = int(out_cfg.get("png_compression", 15))
+        scn.render.image_settings.compression = int(out_cfg.get("png_compression", 1))
 
-    # Performance: skip color management overhead where possible.
+    # Keep scene data between frames (huge for animation workers).
     try:
         scn.render.use_persistent_data = True
+    except Exception:
+        pass
+    try:
+        scn.render.use_motion_blur = False
+    except Exception:
+        pass
+    try:
+        scn.render.film_transparent = False
     except Exception:
         pass
 
     samples = samples_override
     if samples is None:
-        samples = int(accel.get("cycles_samples", out_cfg.get("cycles_samples", 64)))
+        samples = int(accel.get("cycles_samples", out_cfg.get("cycles_samples", 32)))
 
     prefer = engine_choice
     if prefer == "auto":
-        prefer = accel.get("blender_engine", "auto")
+        prefer = accel.get("blender_engine", "eevee")
 
     if prefer == "eevee":
-        return configure_eevee(scn)
+        return configure_eevee(scn, accel)
     if prefer == "cycles":
-        return configure_gpu_cycles(scn, samples)
+        return configure_gpu_cycles(scn, samples, accel)
 
-    # auto: try Cycles GPU, fall back to EEVEE (usually faster for this scene)
+    # auto + prefer_cycles_gpu: try Cycles GPU, else EEVEE
     if accel.get("prefer_cycles_gpu", False):
-        label = configure_gpu_cycles(scn, samples)
-        if "CPU" in label and "OPTIX" not in label and "CUDA" not in label and "HIP" not in label:
+        label = configure_gpu_cycles(scn, samples, accel)
+        if "GPU" not in label and "OPTIX" not in label and "CUDA" not in label and "HIP" not in label:
             print("No Cycles GPU — falling back to EEVEE")
-            return configure_eevee(scn)
+            return configure_eevee(scn, accel)
         return label
 
-    # Default: EEVEE (fast raster) unless forced.
-    return configure_eevee(scn)
+    return configure_eevee(scn, accel)
 
 
 def build_scene(data_dir: Path) -> dict:

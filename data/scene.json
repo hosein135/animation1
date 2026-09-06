@@ -22,20 +22,27 @@
   },
   "acceleration": {
     "renderer": "blender",
-    "blender_engine": "cycles",
+    "blender_engine": "eevee",
     "blender_workers": 0,
     "blender_threads": 0,
     "prefer_cycles_gpu": true,
-    "cycles_samples": 64
+    "eevee_samples": 8,
+    "cycles_samples": 28,
+    "cycles_adaptive": true,
+    "cycles_noise_threshold": 0.05,
+    "cycles_min_samples": 4,
+    "cycles_denoise": true,
+    "cycles_tile_size": 512
   },
   "output": {
-    "frame_format": "PNG",
-    "png_compression": 15,
+    "frame_format": "JPEG",
+    "jpeg_quality": 90,
+    "png_compression": 1,
     "video_codec": "auto",
     "prefer_encoder": "auto",
     "video_crf": 18,
     "video_cq": 19,
-    "video_preset": "medium",
-    "nvenc_preset": "p5"
+    "video_preset": "fast",
+    "nvenc_preset": "p4"
   }
 }

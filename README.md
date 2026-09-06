@@ -15,16 +15,19 @@ CUDA does not replace Python/Blender for scene setup — it accelerates Cycles a
 
 | Mode | Workload |
 |------|----------|
-| `--renderer blender` (default) | Build `.blend` once, parallel Blender workers (OptiX/CUDA/EEVEE) |
+| `--renderer blender` + **EEVEE** (default) | Fast GPU raster, many parallel Blender workers, JPEG frames |
+| `--engine cycles` | OptiX/CUDA + CPU hybrid; **1 worker pinned per NVIDIA GPU** via `CUDA_VISIBLE_DEVICES` |
 | Encode | **NVENC** → **QSV** → threaded **libx264** |
+
+Workers/threads auto-scale from live CPU/GPU counts (`blender_workers: 0`). Override with `--workers N` or `data/scene.json`.
 
 ## Quick start
 
 ```powershell
 # Windows — double-click run.cmd, or from an admin shell:
 .\run.cmd
-.\run.ps1 --renderer blender --engine cycles
-.\run.ps1 --workers 2
+.\run.ps1 --renderer blender --engine eevee
+.\run.ps1 --engine cycles --workers 2
 ```
 
 ```bash
