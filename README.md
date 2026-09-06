@@ -47,6 +47,7 @@ nix run .#animate -- --renderer blender --workers 2
 | `run.cmd` | Elevated launcher for `run.ps1` (same pattern as `windows_search/setup.cmd`) |
 | `run.ps1` | winget + vfox bootstrap, host inventory, pipeline |
 | `run.sh` / `flake.nix` | Nix store bootstrap |
+| `scripts/pipeline.py` | Orchestrator + timing/hardware summary |
 | `scripts/progress.py` | Render/encode progress bars (stdlib) |
 | `scripts/hw_detect.py` | Runtime NVIDIA/NVENC/QSV/CPU detect |
 | `scripts/pelican_build.py` | Pelican + bicycle + coastal set + ride keyframes |

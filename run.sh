@@ -139,7 +139,7 @@ run_pipeline() {
 
   # Flake is pinned to github:NixOS/nixpkgs/nixos-25.05
   # First run generates flake.lock automatically.
-  # Extra args are forwarded to scripts/pipeline.py (e.g. --renderer gpu).
+  # Extra args are forwarded to scripts/pipeline.py (e.g. --engine eevee --workers 4).
   nix run "${ROOT}#animate" \
     --option connect-timeout 60 \
     --option download-attempts 5 \

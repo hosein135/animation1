@@ -298,8 +298,6 @@ def _prefer_encoder(scene: dict) -> str:
 def _planned_codec(hw: HardwareProfile, scene: dict, renderer: str) -> tuple[str, str]:
     """Return (codec, why) matching encode_video._pick_codec policy."""
     prefer = _prefer_encoder(scene)
-    pipe_mode = renderer == "gpu"
-    allow_qsv = not pipe_mode
 
     if prefer == "cpu":
         return "libx264", "output.prefer_encoder=cpu"
@@ -308,17 +306,10 @@ def _planned_codec(hw: HardwareProfile, scene: dict, renderer: str) -> tuple[str
         return "h264_nvenc", "NVENC available and selected"
 
     if prefer == "nvenc" and not hw.has_nvenc:
-        # Fall through like encode_video
         pass
 
-    if allow_qsv and prefer in ("auto", "qsv", "nvenc") and hw.has_qsv:
+    if prefer in ("auto", "qsv", "nvenc") and hw.has_qsv:
         return "h264_qsv", "QSV available (NVENC unused or unavailable)"
-
-    if pipe_mode and hw.has_qsv and prefer in ("auto", "qsv", "nvenc"):
-        return (
-            "libx264",
-            "OpenGL→FFmpeg pipe skips QSV (Intel iGPU GL + Quick Sync often conflict)",
-        )
 
     return "libx264", "software x264 (no usable GPU encoder for this path)"
 
@@ -326,9 +317,9 @@ def _planned_codec(hw: HardwareProfile, scene: dict, renderer: str) -> tuple[str
 def resolve_renderer(scene: dict, renderer_arg: str | None = None) -> str:
     accel = scene.get("acceleration", {})
     renderer = (renderer_arg or accel.get("renderer") or "auto").lower()
-    if renderer != "auto":
-        return renderer
-    # Pelican coastal parade is Blender-built; auto always means blender.
+    if renderer == "blender":
+        return "blender"
+    # auto (and any unknown) → blender
     return "blender"
 
 
@@ -339,7 +330,7 @@ def involvement_rows(
 ) -> list[dict[str, str]]:
     """Structured involvement for NVIDIA / Intel GPU / CPU."""
     scene = scene or {}
-    resolved = renderer if renderer in ("gpu", "blender") else resolve_renderer(scene, "auto")
+    resolved = renderer if renderer == "blender" else resolve_renderer(scene, "auto")
 
     codec, codec_why = _planned_codec(hw, scene, resolved)
     prefer = _prefer_encoder(scene)
@@ -364,19 +355,16 @@ def involvement_rows(
     else:
         names = "; ".join(hw.nvidia_gpus)
         roles: list[str] = []
-        if resolved == "gpu":
-            roles.append("OpenGL render (ModernGL may place context on discrete GPU when available)")
-        elif resolved == "blender":
-            eng = str(scene.get("acceleration", {}).get("blender_engine", "eevee")).lower()
-            if eng == "eevee":
-                roles.append("Blender EEVEE GPU raster (parallel frame workers)")
-            elif prefer_cycles_gpu or eng in ("auto", "cycles"):
-                roles.append(
-                    "Blender Cycles GPU (OptiX/CUDA when available; "
-                    "1 worker pinned per NVIDIA GPU; CPU hybrid tiles)"
-                )
-            else:
-                roles.append("Blender present (EEVEE/CPU path possible)")
+        eng = engine
+        if eng == "eevee":
+            roles.append("Blender EEVEE GPU raster (parallel frame workers)")
+        elif prefer_cycles_gpu or eng in ("auto", "cycles"):
+            roles.append(
+                "Blender Cycles GPU (OptiX/CUDA when available; "
+                "1 worker pinned per NVIDIA GPU; CPU hybrid tiles)"
+            )
+        else:
+            roles.append("Blender present (EEVEE/CPU path possible)")
         if codec == "h264_nvenc":
             roles.append(f"encode via NVENC ({codec_why})")
         elif not hw.has_nvenc:
@@ -414,18 +402,6 @@ def involvement_rows(
                     "detail": f"{names} | encode via Quick Sync (h264_qsv) - {codec_why}",
                 }
             )
-        elif resolved == "gpu" and hw.has_qsv:
-            rows.append(
-                {
-                    "device": intel_label,
-                    "status": "NOT involved",
-                    "detail": (
-                        f"{names} | detected + QSV works, but OpenGL→FFmpeg pipe skips QSV "
-                        "(Intel iGPU GL session often fights Quick Sync / MFX_ERR_DEVICE_FAILED). "
-                        "May still host the OpenGL context if NVIDIA is absent."
-                    ),
-                }
-            )
         elif not hw.has_qsv:
             rows.append(
                 {
@@ -452,16 +428,10 @@ def involvement_rows(
     cpu_roles = [
         f"{hw.cpu_name} - {hw.cpu_count} logical threads",
         "pipeline orchestration (Python / process spawn)",
+        f"Blender workers up to ~{hw.recommended_blender_workers_for(engine)} "
+        f"(engine={engine}; CPU threads split across workers; "
+        f"Cycles pins 1 process/NVIDIA GPU when multiple)",
     ]
-    if resolved == "blender":
-        eng = str(scene.get("acceleration", {}).get("blender_engine", "eevee")).lower()
-        cpu_roles.append(
-            f"Blender workers up to ~{hw.recommended_blender_workers_for(eng)} "
-            f"(engine={eng}; CPU threads split across workers; "
-            f"Cycles pins 1 process/NVIDIA GPU when multiple)"
-        )
-    if resolved == "gpu":
-        cpu_roles.append("hosts ModernGL process + feeds raw frames to FFmpeg")
     if codec == "libx264":
         cpu_roles.append(f"encode via threaded libx264 - {codec_why}")
     else:
@@ -493,7 +463,7 @@ def format_involvement_report(
     renderer: str = "auto",
 ) -> str:
     scene = scene or {}
-    resolved = renderer if renderer in ("gpu", "blender") else resolve_renderer(scene, "auto")
+    resolved = resolve_renderer(scene, renderer)
     codec, codec_why = _planned_codec(hw, scene, resolved)
 
     engine = str(scene.get("acceleration", {}).get("blender_engine", "eevee")).lower()
@@ -531,7 +501,7 @@ def main() -> int:
     )
     p.add_argument(
         "--renderer",
-        choices=("auto", "gpu", "blender"),
+        choices=("auto", "blender"),
         default=None,
         help="Renderer mode used to decide involvement (default: auto or RENDERER env)",
     )

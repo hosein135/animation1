@@ -1,5 +1,5 @@
 {
-  description = "GPU/CPU-accelerated animation (Blender + ModernGL + FFmpeg), nixos-25.05";
+  description = "GPU/CPU-accelerated pelican bicycle animation (Blender + FFmpeg), nixos-25.05";
 
   nixConfig = {
     extra-substituters = [ "https://cache.nixos.org" ];
@@ -22,13 +22,6 @@
         let
           pkgs = import nixpkgs { inherit system; };
 
-          # Python deps from the Nix store (not pip).
-          pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-            moderngl
-            numpy
-            pillow
-          ]);
-
           projectSrc = pkgs.runCommand "animation-src" { } ''
             mkdir -p $out/scripts $out/data
             cp -r ${./scripts}/* $out/scripts/
@@ -38,7 +31,7 @@
           animateScript = pkgs.writeShellApplication {
             name = "animate";
             runtimeInputs = [
-              pythonEnv
+              pkgs.python3
               pkgs.blender
               pkgs.ffmpeg-full
               pkgs.coreutils
@@ -63,7 +56,7 @@
               export OUTPUT_DIR
               mkdir -p "$OUTPUT_DIR/frames"
 
-              # e.g. --renderer gpu|blender|auto  --engine cycles  --workers 4
+              # e.g. --renderer blender --engine eevee|cycles --workers 4
               python3 "$PROJECT/scripts/pipeline.py" "$@"
             '';
           };
@@ -88,23 +81,18 @@
       devShells = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-            moderngl
-            numpy
-            pillow
-          ]);
         in
         {
           default = pkgs.mkShell {
             packages = [
-              pythonEnv
+              pkgs.python3
               pkgs.blender
               pkgs.ffmpeg-full
               pkgs.curl
             ];
             shellHook = ''
-              echo "devShell (nixos-25.05): python3+moderngl/numpy/pillow, blender, ffmpeg-full"
-              echo "Run: ./run.sh   or   nix run .#animate -- --renderer auto"
+              echo "devShell (nixos-25.05): python3, blender, ffmpeg-full"
+              echo "Run: ./run.sh   or   nix run .#animate -- --renderer blender"
             '';
           };
         }

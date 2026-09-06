@@ -65,14 +65,8 @@ def _x264_extra(out_cfg: dict) -> list[str]:
 def _pick_codec(
     scene: dict,
     hw: HardwareProfile,
-    *,
-    allow_qsv: bool = True,
 ) -> tuple[str, list[str]]:
-    """Return (codec_name, extra_ffmpeg_args).
-
-    allow_qsv=False skips Quick Sync — needed for OpenGL→FFmpeg pipes on Intel iGPUs,
-    where D3D/QSV sessions often fail (device failed -17) while GL holds the device.
-    """
+    """Return (codec_name, extra_ffmpeg_args)."""
     out_cfg = scene.get("output", {})
     forced = out_cfg.get("video_codec")
     # Explicit user override (except legacy default libx264 — treat as auto).
@@ -80,8 +74,6 @@ def _pick_codec(
         if forced.endswith("_nvenc"):
             return forced, _nvenc_extra(out_cfg)
         if forced.endswith("_qsv"):
-            if not allow_qsv:
-                return "libx264", _x264_extra(out_cfg)
             return forced, _qsv_extra(out_cfg)
         return forced, []
 
@@ -94,7 +86,7 @@ def _pick_codec(
         return "h264_nvenc", _nvenc_extra(out_cfg)
 
     # Fall through to QSV when NVENC was preferred but not usable (Intel-only / old driver).
-    if allow_qsv and prefer in ("auto", "qsv", "nvenc") and hw.has_qsv:
+    if prefer in ("auto", "qsv", "nvenc") and hw.has_qsv:
         return "h264_qsv", _qsv_extra(out_cfg)
 
     return "libx264", _x264_extra(out_cfg)
@@ -225,64 +217,6 @@ def encode_frames(
         _run_ffmpeg_with_progress(cmd, total, codec)
     return codec
 
-
-def _out_pix_fmt(codec: str) -> str:
-    # h264_qsv wants nv12; yuv420p after format=nv12 fights the encoder on older MFX.
-    return "nv12" if codec.endswith("_qsv") else "yuv420p"
-
-
-def encode_raw_pipe_cmd(
-    output: Path,
-    scene: dict,
-    width: int,
-    height: int,
-    hw: HardwareProfile | None = None,
-    *,
-    force_libx264: bool = False,
-) -> tuple[list[str], str]:
-    """FFmpeg command that reads raw RGB24 frames from stdin.
-
-    QSV is skipped by default: concurrent OpenGL + Quick Sync on the same Intel
-    iGPU commonly hits MFX_ERR_DEVICE_FAILED (-17). Use force_libx264 for fallback.
-    """
-    hw = hw or detect()
-    fps = int(scene["fps"])
-    out_cfg = scene.get("output", {})
-
-    if force_libx264:
-        codec, extra = "libx264", _x264_extra(out_cfg)
-    else:
-        # OpenGL pipe: NVENC OK (discrete GPU); QSV clashes with iGPU GL — use CPU.
-        codec, extra = _pick_codec(scene, hw, allow_qsv=False)
-
-    ffmpeg = hw.ffmpeg_path or shutil.which("ffmpeg") or "ffmpeg"
-    cmd = [
-        ffmpeg,
-        "-y",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-stats",
-        "-f",
-        "rawvideo",
-        "-pix_fmt",
-        "rgb24",
-        "-s",
-        f"{width}x{height}",
-        "-r",
-        str(fps),
-        "-i",
-        "-",
-        "-c:v",
-        codec,
-        *extra,
-        "-pix_fmt",
-        _out_pix_fmt(codec),
-        "-movflags",
-        "+faststart",
-        str(output),
-    ]
-    return cmd, codec
 
 def main() -> int:
     p = argparse.ArgumentParser(description="GPU/CPU-accelerated frame encode")

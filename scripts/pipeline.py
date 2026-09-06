@@ -6,10 +6,7 @@ Deps provisioned by platform:
   Windows (run.ps1 / run.cmd) — winget: Python, Blender, FFmpeg
   Nix (flake)                 — store: blender, ffmpeg-full, python3
 
-Modes:
-  blender — parallel Blender workers (OptiX/CUDA/EEVEE) → FFmpeg  (default)
-  auto    — same as blender for this scene (bar-chart ModernGL path removed)
-  gpu     — legacy ModernGL path (not used for pelican geometry)
+Renders with parallel Blender workers (EEVEE / Cycles) then FFmpeg encode.
 """
 
 from __future__ import annotations
@@ -30,16 +27,6 @@ if str(_SCRIPTS) not in sys.path:
 from encode_video import encode_frames  # noqa: E402
 from hw_detect import HardwareProfile, detect, format_involvement_report  # noqa: E402
 from progress import ProgressBar, count_rendered_frames, raise_process_priority  # noqa: E402
-
-
-def _gpu_deps_available() -> bool:
-    try:
-        import moderngl  # noqa: F401
-        import numpy  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
 
 
 def validate(data_dir: Path) -> None:
@@ -83,12 +70,6 @@ def require_tools(hw: HardwareProfile) -> tuple[str, str]:
     return blender, ffmpeg
 
 
-def run_gpu(data_dir: Path, output_dir: Path) -> None:
-    from gpu_native_render import render_animation
-
-    render_animation(data_dir, output_dir, pipe_to_ffmpeg=True)
-
-
 def _blender_base_args(blender: str) -> list[str]:
     """Faster headless startup: skip user addons/audio."""
     args = [blender, "--background", "--factory-startup"]
@@ -97,13 +78,110 @@ def _blender_base_args(blender: str) -> list[str]:
     return args
 
 
+def _fmt_secs(seconds: float) -> str:
+    if seconds < 60:
+        return f"{seconds:.2f}s"
+    m, s = divmod(seconds, 60)
+    if m < 60:
+        return f"{int(m)}m {s:05.2f}s"
+    h, m = divmod(int(m), 60)
+    return f"{h}h {m}m {s:05.2f}s"
+
+
+def _device_label(hw: HardwareProfile, kind: str) -> str:
+    if kind == "nvidia":
+        return "; ".join(hw.nvidia_gpus) if hw.nvidia_gpus else "(none)"
+    if kind == "intel":
+        return "; ".join(hw.intel_gpus) if hw.intel_gpus else "(none)"
+    return f"{hw.cpu_name} ({hw.cpu_count} threads)"
+
+
+def print_run_summary(
+    *,
+    output_mp4: Path,
+    hw: HardwareProfile,
+    scene: dict,
+    engine: str,
+    workers: int,
+    threads_per_worker: int,
+    frames: int,
+    pin_gpus: bool,
+    codec: str,
+    timings: dict[str, float],
+) -> None:
+    total = timings.get("total", 0.0)
+    nvidia = _device_label(hw, "nvidia")
+    intel = _device_label(hw, "intel")
+    cpu = _device_label(hw, "cpu")
+    eng = (engine or "eevee").lower()
+
+    if eng == "eevee":
+        render_who = (
+            f"NVIDIA GPU raster (EEVEE) on {nvidia}"
+            if hw.nvidia_gpus
+            else (
+                f"GPU/CPU EEVEE ({intel})"
+                if hw.intel_gpus
+                else f"CPU / software GL ({cpu})"
+            )
+        )
+        render_note = f"{workers} Blender process(es) × {threads_per_worker} CPU thread(s) each"
+    else:
+        if hw.nvidia_gpus:
+            render_who = f"NVIDIA Cycles (OptiX/CUDA) on {nvidia}"
+            if pin_gpus and len(hw.nvidia_gpus) >= 2:
+                render_note = f"{workers} process(es) pinned 1:1 to NVIDIA GPUs + CPU hybrid tiles"
+            else:
+                render_note = f"{workers} process(es), GPU + CPU hybrid ({threads_per_worker} threads/worker)"
+        else:
+            render_who = f"Cycles CPU on {cpu}"
+            render_note = f"{workers} process(es) × {threads_per_worker} threads"
+
+    if codec.endswith("_nvenc"):
+        encode_who = f"NVIDIA NVENC on {nvidia}"
+    elif codec.endswith("_qsv"):
+        encode_who = f"Intel Quick Sync on {intel}"
+    else:
+        encode_who = f"CPU libx264 on {cpu}"
+
+    lines = [
+        "",
+        "=" * 64,
+        " Animation complete — timing & hardware summary",
+        "=" * 64,
+        f"  Output     : {output_mp4}",
+        f"  Frames     : {frames}",
+        f"  Wall clock : {_fmt_secs(total)}",
+        "",
+        "  Stage timings:",
+        f"    validate : {_fmt_secs(timings.get('validate', 0.0))}",
+        f"    build    : {_fmt_secs(timings.get('build', 0.0))}   (CPU scene construction)",
+        f"    render   : {_fmt_secs(timings.get('render', 0.0))}   ({render_note})",
+        f"    encode   : {_fmt_secs(timings.get('encode', 0.0))}   ({codec})",
+        "",
+        "  Who did what:",
+        f"    CPU      : orchestration, Blender scene build, worker threads, FFmpeg mux",
+        f"               {cpu}",
+        f"    Render   : {render_who}",
+        f"    Encode   : {encode_who}",
+    ]
+    if hw.nvidia_gpus and not codec.endswith("_nvenc") and eng == "eevee":
+        lines.append("    Note     : NVIDIA used for EEVEE render; encode used a non-NVENC path")
+    if hw.intel_gpus and codec.endswith("_qsv"):
+        lines.append("    Intel GPU: encode only (Quick Sync); not used for Blender Cycles when NVIDIA present")
+    elif hw.intel_gpus and not codec.endswith("_qsv"):
+        lines.append(f"    Intel GPU: detected ({intel}) — not selected for encode this run")
+    lines += ["=" * 64, ""]
+    print("\n".join(lines))
+
+
 def run_blender_parallel(
     data_dir: Path,
     output_dir: Path,
     scene: dict,
     hw: HardwareProfile,
     engine: str,
-) -> None:
+) -> dict:
     blender, _ffmpeg = require_tools(hw)
     accel = scene.get("acceleration", {})
     resolved_engine = engine if engine != "auto" else str(accel.get("blender_engine", "eevee"))
@@ -153,6 +231,7 @@ def run_blender_parallel(
     build_env = os.environ.copy()
     build_env.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
     build_log = logs_dir / "build.log"
+    t_build = time.perf_counter()
     with build_log.open("wb") as logf:
         subprocess.run(
             extra_cmd("--mode", "build", "--blend", str(blend)),
@@ -161,6 +240,7 @@ def run_blender_parallel(
             stdout=logf,
             stderr=subprocess.STDOUT,
         )
+    build_s = time.perf_counter() - t_build
 
     ranges = _chunk_ranges(total, workers)
     print(f"==> Multiprocess render: {workers} Blender process(es), ranges={ranges}")
@@ -168,6 +248,7 @@ def run_blender_parallel(
 
     procs: list[subprocess.Popen[bytes]] = []
     log_handles: list = []
+    t_render = time.perf_counter()
     try:
         for idx, (fs, fe) in enumerate(ranges):
             env = os.environ.copy()
@@ -239,6 +320,17 @@ def run_blender_parallel(
                 fh.close()
             except Exception:
                 pass
+    render_s = time.perf_counter() - t_render
+
+    return {
+        "engine": resolved_engine,
+        "workers": workers,
+        "threads": threads,
+        "frames": total,
+        "pin_gpus": pin_gpus,
+        "build_s": build_s,
+        "render_s": render_s,
+    }
 
 
 def main() -> int:
@@ -247,9 +339,9 @@ def main() -> int:
     p.add_argument("--output-dir", type=Path, default=None)
     p.add_argument(
         "--renderer",
-        choices=("auto", "blender", "gpu"),
+        choices=("auto", "blender"),
         default=None,
-        help="auto | gpu (ModernGL) | blender",
+        help="auto | blender (default)",
     )
     p.add_argument(
         "--engine",
@@ -286,39 +378,48 @@ def main() -> int:
     print(f"==> Renderer mode: {renderer}")
 
     t0 = time.perf_counter()
+    timings: dict[str, float] = {}
     print("==> Validating data...")
+    t_val = time.perf_counter()
     validate(data_dir)
+    timings["validate"] = time.perf_counter() - t_val
 
     if renderer == "auto":
-        # Pelican scene is Blender-only; ModernGL bar path does not apply.
         renderer = "blender"
         print(f"==> auto → {renderer}")
 
     print(format_involvement_report(hw, scene, renderer))
 
-    if renderer == "gpu":
-        if not _gpu_deps_available():
-            raise SystemExit(
-                "renderer=gpu needs moderngl+numpy (legacy bar path).\n"
-                "  Pelican parade: use --renderer blender"
-            )
-        print("==> GPU-native OpenGL render + FFmpeg pipe (legacy)...")
-        run_gpu(data_dir, output_dir)
-    else:
-        print("==> Blender pelican parade (GPU/CPU + parallel workers)...")
-        run_blender_parallel(data_dir, output_dir, scene, hw, engine)
-        print("==> Encoding (NVENC → QSV → libx264)...")
-        codec = encode_frames(
-            output_dir / "frames",
-            output_dir / "animation.mp4",
-            scene,
-            hw,
-            expected_frames=_frame_count(scene),
-        )
-        print(f"==> Codec: {codec}")
+    print("==> Blender pelican parade (GPU/CPU + parallel workers)...")
+    render_meta = run_blender_parallel(data_dir, output_dir, scene, hw, engine)
+    timings["build"] = float(render_meta["build_s"])
+    timings["render"] = float(render_meta["render_s"])
+    print("==> Encoding (NVENC → QSV → libx264)...")
+    t_enc = time.perf_counter()
+    codec = encode_frames(
+        output_dir / "frames",
+        output_dir / "animation.mp4",
+        scene,
+        hw,
+        expected_frames=_frame_count(scene),
+    )
+    timings["encode"] = time.perf_counter() - t_enc
+    print(f"==> Codec: {codec}")
 
-    dt = time.perf_counter() - t0
-    print(f"==> Ready: {output_dir / 'animation.mp4'} ({dt:.2f}s wall)")
+    timings["total"] = time.perf_counter() - t0
+    out_mp4 = output_dir / "animation.mp4"
+    print_run_summary(
+        output_mp4=out_mp4,
+        hw=hw,
+        scene=scene,
+        engine=str(render_meta.get("engine", engine)),
+        workers=int(render_meta.get("workers", 0)),
+        threads_per_worker=int(render_meta.get("threads", 0)),
+        frames=int(render_meta.get("frames", _frame_count(scene))),
+        pin_gpus=bool(render_meta.get("pin_gpus", False)),
+        codec=codec,
+        timings=timings,
+    )
     return 0
 
 
