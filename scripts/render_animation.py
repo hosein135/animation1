@@ -2,6 +2,9 @@
 """
 Blender headless renderer — GPU-first (OptiX → CUDA → HIP → EEVEE), CPU hybrid.
 
+Builds the pelican-on-bicycle coastal parade (simonw pelican final look) with
+ride animation, then renders frame slices for FFmpeg.
+
 Modes:
   build   — construct scene + animation, save .blend (no frames)
   render  — render a frame slice (from live build or --blend)
@@ -11,11 +14,13 @@ Modes:
 from __future__ import annotations
 
 import argparse
-import csv
 import json
-import math
 import sys
 from pathlib import Path
+
+_SCRIPTS = Path(__file__).resolve().parent
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -42,98 +47,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def ease_out_cubic(t: float) -> float:
-    t = max(0.0, min(1.0, t))
-    return 1.0 - (1.0 - t) ** 3
-
-
-def bounce_out(t: float) -> float:
-    t = max(0.0, min(1.0, t))
-    n1 = 7.5625
-    d1 = 2.75
-    if t < 1 / d1:
-        return n1 * t * t
-    if t < 2 / d1:
-        t -= 1.5 / d1
-        return n1 * t * t + 0.75
-    if t < 2.5 / d1:
-        t -= 2.25 / d1
-        return n1 * t * t + 0.9375
-    t -= 2.625 / d1
-    return n1 * t * t + 0.984375
-
-
 def load_scene(path: Path) -> dict:
     with path.open(encoding="utf-8") as f:
         return json.load(f)
-
-
-def load_values(path: Path) -> list[dict]:
-    rows: list[dict] = []
-    with path.open(encoding="utf-8", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            rows.append(
-                {
-                    "label": row["frame_label"],
-                    "value": float(row["value"]),
-                    "color": (float(row["r"]), float(row["g"]), float(row["b"]), 1.0),
-                }
-            )
-    return rows
-
-
-def clear_scene() -> None:
-    import bpy
-
-    bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.object.delete(use_global=False)
-    for block in list(bpy.data.meshes):
-        if block.users == 0:
-            bpy.data.meshes.remove(block)
-    for block in list(bpy.data.materials):
-        if block.users == 0:
-            bpy.data.materials.remove(block)
-
-
-def make_material(name: str, rgba: tuple[float, float, float, float]):
-    import bpy
-
-    mat = bpy.data.materials.new(name=name)
-    mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    links = mat.node_tree.links
-    nodes.clear()
-    out = nodes.new("ShaderNodeOutputMaterial")
-    bsdf = nodes.new("ShaderNodeBsdfPrincipled")
-    bsdf.inputs["Base Color"].default_value = rgba
-    bsdf.inputs["Roughness"].default_value = 0.35
-    if "Specular IOR Level" in bsdf.inputs:
-        bsdf.inputs["Specular IOR Level"].default_value = 0.5
-    elif "Specular" in bsdf.inputs:
-        bsdf.inputs["Specular"].default_value = 0.5
-    links.new(bsdf.outputs["BSDF"], out.inputs["Surface"])
-    return mat
-
-
-def look_at(obj, target) -> None:
-    import mathutils
-
-    direction = mathutils.Vector(target) - obj.location
-    obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
-
-
-def setup_world(bg: list[float]) -> None:
-    import bpy
-
-    world = bpy.data.worlds.new("World")
-    bpy.context.scene.world = world
-    world.use_nodes = True
-    bg_node = world.node_tree.nodes.get("Background")
-    if bg_node is None:
-        bg_node = world.node_tree.nodes.new("ShaderNodeBackground")
-    bg_node.inputs["Color"].default_value = tuple(bg)
-    bg_node.inputs["Strength"].default_value = 1.0
 
 
 def configure_gpu_cycles(scn, samples: int) -> str:
@@ -142,7 +58,7 @@ def configure_gpu_cycles(scn, samples: int) -> str:
 
     scn.render.engine = "CYCLES"
     scn.cycles.samples = samples
-    scn.cycles.use_denoising = False
+    scn.cycles.use_denoising = True
     scn.cycles.device = "GPU"
 
     # All CPU threads for BVH / hybrid tiles.
@@ -273,102 +189,13 @@ def apply_render_settings(
 
 
 def build_scene(data_dir: Path) -> dict:
-    import bpy
+    scripts_dir = Path(__file__).resolve().parent
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    from pelican_build import build_pelican_animation
 
     scene_cfg = load_scene(data_dir / "scene.json")
-    series = load_values(data_dir / "values.csv")
-    if not series:
-        raise RuntimeError("No rows in values.csv")
-
-    fps = int(scene_cfg["fps"])
-    duration = float(scene_cfg["duration_seconds"])
-    frame_end = max(1, int(round(fps * duration)))
-    bar_cfg = scene_cfg["bar"]
-    spacing = float(bar_cfg.get("spacing", 1.15))
-    base_radius = float(bar_cfg.get("base_radius", 0.35))
-    max_height = float(bar_cfg.get("max_height", 4.0))
-    use_bounce = bool(bar_cfg.get("bounce", True))
-
-    max_value = max(item["value"] for item in series) or 1.0
-    n = len(series)
-    x0 = -((n - 1) * spacing) / 2.0
-
-    clear_scene()
-    setup_world(scene_cfg.get("background_color", [0.05, 0.05, 0.08, 1.0]))
-
-    bpy.ops.mesh.primitive_plane_add(size=40, location=(0, 0, 0))
-    ground = bpy.context.active_object
-    ground.name = "Ground"
-    ground.data.materials.append(make_material("GroundMat", (0.12, 0.14, 0.18, 1.0)))
-
-    bars = []
-    for i, item in enumerate(series):
-        target_h = (item["value"] / max_value) * max_height
-        bpy.ops.mesh.primitive_cylinder_add(
-            radius=base_radius,
-            depth=1.0,
-            location=(x0 + i * spacing, 0.0, 0.5),
-        )
-        bar = bpy.context.active_object
-        bar.name = f"Bar_{item['label']}"
-        bar.data.materials.append(make_material(f"Mat_{item['label']}", item["color"]))
-        bars.append((bar, target_h, item["label"]))
-
-    light_cfg = scene_cfg.get("lighting", {})
-    bpy.ops.object.light_add(type="SUN", location=(4, -4, 10))
-    sun = bpy.context.active_object
-    sun.data.energy = float(light_cfg.get("sun_energy", 3.5))
-    sun.rotation_euler = tuple(light_cfg.get("sun_rotation_euler", [0.9, 0.2, 0.4]))
-
-    bpy.ops.object.light_add(type="AREA", location=(-6, -3, 5))
-    fill = bpy.context.active_object
-    fill.data.energy = float(light_cfg.get("fill_energy", 80.0))
-    fill.data.size = 6.0
-
-    cam_cfg = scene_cfg["camera"]
-    bpy.ops.object.camera_add(location=tuple(cam_cfg["location"]))
-    cam = bpy.context.active_object
-    cam.data.lens = float(cam_cfg.get("lens", 40))
-    look_at(cam, cam_cfg.get("look_at", [0, 0, 1.2]))
-    bpy.context.scene.camera = cam
-
-    for i, (bar, target_h, _label) in enumerate(bars):
-        start_frame = 1 + int((i / max(n, 1)) * (frame_end * 0.35))
-        end_frame = min(frame_end, start_frame + int(frame_end * 0.55))
-
-        bar.scale = (1.0, 1.0, 0.001)
-        bar.location.z = 0.0005
-        bar.keyframe_insert(data_path="scale", frame=start_frame)
-        bar.keyframe_insert(data_path="location", frame=start_frame)
-
-        progress_frames = max(1, end_frame - start_frame)
-        for step in range(progress_frames + 1):
-            t = step / progress_frames
-            eased = bounce_out(t) if use_bounce else ease_out_cubic(t)
-            h = max(0.001, target_h * eased)
-            bar.scale = (1.0, 1.0, h)
-            bar.location.z = h / 2.0
-            fr = start_frame + step
-            bar.keyframe_insert(data_path="scale", frame=fr)
-            bar.keyframe_insert(data_path="location", frame=fr)
-
-        bob_start = end_frame
-        for fr in range(bob_start, frame_end + 1):
-            phase = (fr - bob_start) / max(1, frame_end - bob_start)
-            bob = 1.0 + 0.03 * math.sin(phase * math.pi * 2.0)
-            bar.scale = (1.0, 1.0, target_h * bob)
-            bar.location.z = (target_h * bob) / 2.0
-            bar.keyframe_insert(data_path="scale", frame=fr)
-            bar.keyframe_insert(data_path="location", frame=fr)
-
-    for bar, *_ in bars:
-        if bar.animation_data and bar.animation_data.action:
-            for fcurve in bar.animation_data.action.fcurves:
-                for kp in fcurve.keyframe_points:
-                    kp.interpolation = "BEZIER"
-                    kp.handle_left_type = "AUTO_CLAMPED"
-                    kp.handle_right_type = "AUTO_CLAMPED"
-
+    build_pelican_animation(scene_cfg)
     return scene_cfg
 
 

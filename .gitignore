@@ -12,6 +12,9 @@ output/frames/
 output/*.mp4
 output/*.png
 output/*.jpg
+output/*.blend
+output/*.blend1
+.vfox.toml
 
 # Editor / OS
 .DS_Store

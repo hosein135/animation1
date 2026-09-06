@@ -287,13 +287,8 @@ def resolve_renderer(scene: dict, renderer_arg: str | None = None) -> str:
     renderer = (renderer_arg or accel.get("renderer") or "auto").lower()
     if renderer != "auto":
         return renderer
-    try:
-        import moderngl  # noqa: F401
-        import numpy  # noqa: F401
-
-        return "gpu"
-    except ImportError:
-        return "blender"
+    # Pelican coastal parade is Blender-built; auto always means blender.
+    return "blender"
 
 
 def involvement_rows(

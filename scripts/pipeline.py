@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Concurrent animation pipeline.
+Concurrent animation pipeline — pelican-on-bicycle coastal parade.
 
 Deps provisioned by platform:
-  Windows (run.ps1) — winget: Python, Blender, FFmpeg; pip: moderngl numpy pillow
-  Nix (flake)       — store: blender, ffmpeg-full, python3 + moderngl/numpy/pillow
+  Windows (run.ps1 / run.cmd) — winget: Python, Blender, FFmpeg
+  Nix (flake)                 — store: blender, ffmpeg-full, python3
 
 Modes:
-  auto    — GPU-native if moderngl available, else Blender
-  gpu     — ModernGL → FFmpeg pipe (NVENC/QSV/libx264)
-  blender — parallel Blender workers (OptiX/CUDA/EEVEE) → FFmpeg
+  blender — parallel Blender workers (OptiX/CUDA/EEVEE) → FFmpeg  (default)
+  auto    — same as blender for this scene (bar-chart ModernGL path removed)
+  gpu     — legacy ModernGL path (not used for pelican geometry)
 """
 
 from __future__ import annotations
@@ -219,7 +219,8 @@ def main() -> int:
     validate(data_dir)
 
     if renderer == "auto":
-        renderer = "gpu" if _gpu_deps_available() else "blender"
+        # Pelican scene is Blender-only; ModernGL bar path does not apply.
+        renderer = "blender"
         print(f"==> auto → {renderer}")
 
     print(format_involvement_report(hw, scene, renderer))
@@ -227,13 +228,13 @@ def main() -> int:
     if renderer == "gpu":
         if not _gpu_deps_available():
             raise SystemExit(
-                "renderer=gpu needs moderngl+numpy.\n"
-                "  Nix flake already provides them; Windows: run.ps1 uses pip."
+                "renderer=gpu needs moderngl+numpy (legacy bar path).\n"
+                "  Pelican parade: use --renderer blender"
             )
-        print("==> GPU-native OpenGL render + FFmpeg pipe...")
+        print("==> GPU-native OpenGL render + FFmpeg pipe (legacy)...")
         run_gpu(data_dir, output_dir)
     else:
-        print("==> Blender (GPU/CPU + parallel workers)...")
+        print("==> Blender pelican parade (GPU/CPU + parallel workers)...")
         run_blender_parallel(data_dir, output_dir, scene, hw, engine)
         print("==> Encoding (NVENC → QSV → libx264)...")
         codec = encode_frames(output_dir / "frames", output_dir / "animation.mp4", scene, hw)
