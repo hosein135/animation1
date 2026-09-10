@@ -52,26 +52,60 @@ def _fmt_hms(seconds: float) -> str:
     return f"{m:02d}:{s:02d}"
 
 
+def _ipython_kernel():
+    try:
+        from IPython import get_ipython
+
+        ip = get_ipython()
+        if ip is not None and getattr(ip, "kernel", None) is not None:
+            return ip
+    except Exception:
+        return None
+    return None
+
+
+def _force_live() -> bool:
+    flag = os.environ.get("ANIM_PROGRESS", "").strip().lower()
+    if flag in {"0", "false", "no", "quiet"}:
+        return False
+    if flag in {"1", "true", "yes", "live", "notebook"}:
+        return True
+    return bool(os.environ.get("COLAB_RELEASE_TAG"))
+
+
 class ProgressBar:
-    """Single-line \\r progress bar on stderr (works in Windows consoles)."""
+    """Live render/encode bar: HTML in Jupyter/Colab, \\r on a TTY, periodic lines otherwise."""
 
     def __init__(self, total: int, label: str = "Progress", width: int = 28) -> None:
         self.total = max(1, int(total))
         self.label = label
         self.width = width
-        self.stream = sys.stderr
-        self._fill, self._empty = _bar_chars(self.stream)
+        self._fill, self._empty = "█", "░"
         self._start = time.perf_counter()
         self._last_len = 0
+        self._last_print = 0.0
         self._current = 0
+        self._suffix = ""
         self._closed = False
-        self._tty = bool(getattr(self.stream, "isatty", lambda: False)())
+        self._handle = None
+        self._html = None
 
-    def update(self, current: int, suffix: str = "") -> None:
-        if self._closed:
-            return
-        current = max(0, min(int(current), self.total))
-        self._current = current
+        ip = _ipython_kernel()
+        if ip is not None:
+            try:
+                from IPython.display import HTML, display
+
+                self._html = HTML
+                self._handle = display(self._html_obj(0, ""), display_id=True)
+            except Exception:
+                self._handle = None
+
+        self.stream = sys.stdout if (self._handle or _force_live()) else sys.stderr
+        self._fill, self._empty = _bar_chars(self.stream)
+        self._tty = bool(getattr(self.stream, "isatty", lambda: False)())
+        self.update(0)
+
+    def _line(self, current: int, suffix: str) -> str:
         frac = current / self.total
         filled = int(self.width * frac)
         bar = self._fill * filled + self._empty * (self.width - filled)
@@ -79,27 +113,76 @@ class ProgressBar:
         rate = current / elapsed if elapsed > 0.05 and current else 0.0
         remain = (self.total - current) / rate if rate > 0 else float("inf")
         extra = f"  {suffix}" if suffix else ""
-        line = (
+        return (
             f"{self.label:7s} [{bar}] {current:>4d}/{self.total}  {frac:6.1%}  "
             f"{rate:5.2f}/s  ETA {_fmt_hms(remain)}{extra}"
         )
+
+    def _html_obj(self, current: int, suffix: str):
+        frac = current / self.total
+        elapsed = time.perf_counter() - self._start
+        rate = current / elapsed if elapsed > 0.05 and current else 0.0
+        remain = (self.total - current) / rate if rate > 0 else float("inf")
+        extra = suffix or ""
+        markup = (
+            f'<div style="font-family:system-ui,sans-serif;max-width:680px;margin:6px 0 10px">'
+            f'<div style="display:flex;justify-content:space-between;font-size:13px">'
+            f"<b>{self.label}</b>"
+            f"<span>{current}/{self.total} ({frac:5.1%})</span>"
+            f"</div>"
+            f'<div style="background:#e8eaed;border-radius:8px;height:16px;overflow:hidden">'
+            f'<div style="background:#1a73e8;width:{frac * 100:.2f}%;height:100%;'
+            f'transition:width .2s"></div></div>'
+            f'<div style="color:#5f6368;font-size:12px;margin-top:4px">'
+            f"{rate:0.2f}/s · ETA {_fmt_hms(remain)}"
+            f"{' · ' + extra if extra else ''}</div></div>"
+        )
+        return self._html(markup)
+
+    def update(self, current: int, suffix: str = "") -> None:
+        if self._closed:
+            return
+        current = max(0, min(int(current), self.total))
+        self._current = current
+        self._suffix = suffix
+        line = self._line(current, suffix)
+        now = time.perf_counter()
+
+        if self._handle is not None:
+            try:
+                self._handle.update(self._html_obj(current, suffix))
+            except Exception:
+                self._handle = None
+            else:
+                # Colab sometimes holds widget redraws; keep a text heartbeat too.
+                if _force_live() and (now - self._last_print) >= 1.0:
+                    print(line, flush=True)
+                    self._last_print = now
+                return
+
         if self._tty:
             pad = max(0, self._last_len - len(line))
             self.stream.write("\r" + line + (" " * pad))
             self.stream.flush()
             self._last_len = len(line)
-        else:
-            # Non-TTY (piped logs): emit at 10% steps to avoid spam.
-            step = max(1, self.total // 10)
-            if current == 0 or current == self.total or current % step == 0:
-                self.stream.write(line + "\n")
-                self.stream.flush()
+            return
+
+        # Notebooks / Colab subprocess: new lines (\\r is dropped by Colab).
+        interval = 0.5 if _force_live() else None
+        step = max(1, self.total // 10)
+        due = current == 0 or current == self.total or current % step == 0
+        if interval is not None:
+            due = due or (now - self._last_print) >= interval
+        if due:
+            self.stream.write(line + "\n")
+            self.stream.flush()
+            self._last_print = now
 
     def close(self, suffix: str = "done") -> None:
         if self._closed:
             return
         self.update(self.total, suffix=suffix)
-        if self._tty:
+        if self._handle is None and self._tty:
             self.stream.write("\n")
             self.stream.flush()
         self._closed = True
