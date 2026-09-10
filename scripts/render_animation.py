@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -24,8 +25,13 @@ if str(_SCRIPTS) not in sys.path:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
+    # Blender 4.x on Linux often leaves its own flags in sys.argv. Prefer the
+    # explicit "--" split, else start at our first flag so "--background" etc.
+    # are not fed to argparse (that exits 1 and is what Colab was hitting).
     if "--" in argv:
         argv = argv[argv.index("--") + 1 :]
+    elif "--data-dir" in argv:
+        argv = argv[argv.index("--data-dir") :]
     else:
         argv = argv[1:]
 
@@ -75,7 +81,9 @@ def configure_gpu_cycles(scn, samples: int, accel: dict | None = None) -> str:
     use_denoise = bool(accel.get("cycles_denoise", True))
     scn.cycles.use_denoising = use_denoise
     if use_denoise:
-        for denoiser in ("OPTIX", "OPENIMAGEDENOISE", "NLM"):
+        prefer = os.environ.get("ANIM_CYCLES_DEVICE", "").strip().upper()
+        denoisers = ("OPENIMAGEDENOISE", "NLM") if prefer.startswith("CUDA") else ("OPTIX", "OPENIMAGEDENOISE", "NLM")
+        for denoiser in denoisers:
             try:
                 scn.cycles.denoiser = denoiser
                 break
@@ -101,8 +109,19 @@ def configure_gpu_cycles(scn, samples: int, accel: dict | None = None) -> str:
         scn.cycles.device = "CPU"
         return label
 
-    # Prefer OptiX → CUDA → HIP → METAL → ONEAPI; enable every matching GPU + CPU.
-    for compute in ("OPTIX", "CUDA", "HIP", "METAL", "ONEAPI"):
+    # Prefer OptiX → CUDA → … unless ANIM_CYCLES_DEVICE overrides (Colab T4: CUDA).
+    default_order = ("OPTIX", "CUDA", "HIP", "METAL", "ONEAPI")
+    raw = os.environ.get("ANIM_CYCLES_DEVICE", "").strip()
+    if raw:
+        aliases = {"GPU": "CUDA"}
+        order = tuple(
+            aliases.get(p.strip().upper(), p.strip().upper())
+            for p in raw.replace(";", ",").split(",")
+            if p.strip()
+        ) or default_order
+    else:
+        order = default_order
+    for compute in order:
         try:
             prefs.compute_device_type = compute
             prefs.get_devices()

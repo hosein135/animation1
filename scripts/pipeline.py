@@ -71,11 +71,50 @@ def require_tools(hw: HardwareProfile) -> tuple[str, str]:
 
 
 def _blender_base_args(blender: str) -> list[str]:
-    """Faster headless startup: skip user addons/audio."""
-    args = [blender, "--background", "--factory-startup"]
-    # Blender accepts -noaudio on most builds; ignore if the binary rejects it later.
-    args.append("-noaudio")
-    return args
+    """Faster headless startup: skip user addons. Python exceptions must fail the process."""
+    return [
+        blender,
+        "--background",
+        "--factory-startup",
+        "--python-exit-code",
+        "1",
+    ]
+
+
+def _should_tee_blender() -> bool:
+    flag = os.environ.get("ANIM_TEE_LOGS", "").strip().lower()
+    if flag in {"0", "false", "no"}:
+        return False
+    if flag in {"1", "true", "yes"}:
+        return True
+    return not sys.stdout.isatty()
+
+
+def _print_log_tail(path: Path, limit: int = 16000) -> None:
+    if not path.is_file():
+        print(f"(no log at {path})", flush=True)
+        return
+    text = path.read_text(encoding="utf-8", errors="replace")
+    tail = text[-limit:] if len(text) > limit else text
+    print(f"\n----- {path} -----\n{tail}\n----- end {path.name} -----", flush=True)
+
+
+def _run_blender_logged(cmd: list[str], *, env: dict, log_path: Path) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    tee = _should_tee_blender()
+    print(f"==> blender log: {log_path}", flush=True)
+    with log_path.open("wb") as logf:
+        proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        assert proc.stdout is not None
+        for chunk in proc.stdout:
+            logf.write(chunk)
+            if tee:
+                sys.stdout.buffer.write(chunk)
+                sys.stdout.flush()
+        code = proc.wait()
+    if code != 0:
+        _print_log_tail(log_path)
+        raise SystemExit(f"Blender exited {code} (see {log_path})")
 
 
 def _fmt_secs(seconds: float) -> str:
@@ -232,14 +271,11 @@ def run_blender_parallel(
     build_env.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
     build_log = logs_dir / "build.log"
     t_build = time.perf_counter()
-    with build_log.open("wb") as logf:
-        subprocess.run(
-            extra_cmd("--mode", "build", "--blend", str(blend)),
-            check=True,
-            env=build_env,
-            stdout=logf,
-            stderr=subprocess.STDOUT,
-        )
+    _run_blender_logged(
+        extra_cmd("--mode", "build", "--blend", str(blend)),
+        env=build_env,
+        log_path=build_log,
+    )
     build_s = time.perf_counter() - t_build
 
     ranges = _chunk_ranges(total, workers)
@@ -308,8 +344,12 @@ def run_blender_parallel(
                     f"worker-{idx} exit {proc.returncode} (see {logs_dir / f'worker-{idx}.log'})"
                 )
         if failures:
+            for idx, _proc in enumerate(procs):
+                _print_log_tail(logs_dir / f"worker-{idx}.log")
             raise SystemExit("Blender workers failed:\n  " + "\n  ".join(failures))
         if done < total:
+            for idx in range(len(procs)):
+                _print_log_tail(logs_dir / f"worker-{idx}.log")
             raise SystemExit(f"Expected {total} frames, found {done} in {frames_dir}")
     finally:
         for p in procs:
