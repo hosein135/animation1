@@ -16,9 +16,26 @@ def _obj(ctx: dict, name: str):
     return objs[name]
 
 
+def _from_time(t: float, ctx: dict) -> int:
+    frame = 1 + int(round(float(t) * float(ctx["fps"])))
+    return max(int(ctx.get("frame_start", 1)), min(int(ctx["frame_end"]), frame))
+
+
+def _key_frame(key: dict, ctx: dict) -> int:
+    if "frame" in key:
+        return int(key["frame"])
+    if "time" in key:
+        return _from_time(key["time"], ctx)
+    raise ValueError("key requires 'frame' or 'time'")
+
+
 def _frame_range(cfg: dict, ctx: dict) -> tuple[int, int]:
-    start = int(cfg.get("frame_start", 1))
+    start = int(cfg.get("frame_start", ctx.get("frame_start", 1)))
     end = int(cfg.get("frame_end", ctx["frame_end"]))
+    if "time_start" in cfg:
+        start = _from_time(cfg["time_start"], ctx)
+    if "time_end" in cfg:
+        end = _from_time(cfg["time_end"], ctx)
     return start, end
 
 
@@ -136,10 +153,21 @@ def follow_axis(cfg: dict, ctx: dict) -> None:
 
 
 def look_at(cfg: dict, ctx: dict) -> None:
-    """Orient camera/object toward points at start and end frames."""
+    """Orient camera/object toward points. Supports a multi-key `keys` list."""
     from mathutils import Vector
 
     obj = _obj(ctx, cfg["target"])
+    if "keys" in cfg:
+        for key in cfg["keys"]:
+            fr = _key_frame(key, ctx)
+            if "location" in key:
+                obj.location = key["location"]
+                obj.keyframe_insert(data_path="location", frame=fr)
+            look = Vector(key["point"])
+            obj.rotation_euler = (look - Vector(obj.location)).to_track_quat("-Z", "Y").to_euler()
+            obj.keyframe_insert(data_path="rotation_euler", frame=fr)
+        return
+
     start, end = _frame_range(cfg, ctx)
     points = cfg["points"]
     if len(points) < 2:
@@ -161,6 +189,53 @@ def look_at(cfg: dict, ctx: dict) -> None:
     look = Vector(points[-1])
     obj.rotation_euler = (look - obj.location).to_track_quat("-Z", "Y").to_euler()
     obj.keyframe_insert(data_path="rotation_euler", frame=end)
+
+
+def keyframes(cfg: dict, ctx: dict) -> None:
+    """Keyframe location, rotation_euler, scale, or camera ortho_scale."""
+    obj = _obj(ctx, cfg["target"])
+    prop = str(cfg.get("property", "location"))
+    if prop == "ortho_scale":
+        cam = obj.data
+        for key in cfg["keys"]:
+            fr = _key_frame(key, ctx)
+            cam.ortho_scale = float(key["value"])
+            cam.keyframe_insert(data_path="ortho_scale", frame=fr)
+        return
+    for key in cfg["keys"]:
+        fr = _key_frame(key, ctx)
+        val = key["value"]
+        if prop == "location":
+            obj.location = val
+        elif prop == "rotation_euler":
+            obj.rotation_euler = val
+        elif prop == "scale":
+            obj.scale = val
+        else:
+            raise ValueError(f"Unsupported keyframes property: {prop}")
+        obj.keyframe_insert(data_path=prop, frame=fr)
+
+
+def talk(cfg: dict, ctx: dict) -> None:
+    """Speech-like scale pulse for a pouch/beak (visual only, no audio)."""
+    obj = _obj(ctx, cfg["target"])
+    start, end = _frame_range(cfg, ctx)
+    axes = cfg.get("axes", [1, 2])
+    amplitude = float(cfg.get("amplitude", 0.22))
+    cycles = float(cfg.get("cycles", 8.0))
+    base = list(cfg["base"]) if "base" in cfg else list(obj.scale)
+    steps = _steps(cfg, start, end)
+    for step in range(steps + 1):
+        fr = start + int(step * (end - start) / steps)
+        t = (fr - start) / max(1, end - start)
+        pulse = abs(math.sin(t * math.pi * cycles))
+        pulse += 0.45 * abs(math.sin(t * math.pi * cycles * 1.7 + 0.6))
+        pulse *= amplitude
+        sc = list(base)
+        for ax in axes:
+            sc[int(ax)] = base[int(ax)] * (1.0 + pulse)
+        obj.scale = sc
+        obj.keyframe_insert(data_path="scale", frame=fr)
 
 
 def parent(cfg: dict, ctx: dict) -> None:
@@ -200,6 +275,8 @@ ACTION_REGISTRY: dict[str, ActionFn] = {
     "flutter": flutter,
     "follow_axis": follow_axis,
     "look_at": look_at,
+    "keyframes": keyframes,
+    "talk": talk,
     "parent": parent,
     "set_interpolation": set_interpolation,
     "bob_matching": bob_matching,

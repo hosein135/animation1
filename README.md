@@ -2,7 +2,7 @@
 
 Declarative Blender animation pipeline: describe objects and actions in JSON, render with parallel Blender workers, encode with hardware-aware FFmpeg.
 
-Default data recreates a pelican riding a bicycle along a sunset boardwalk (inspired by [simonw/gpt-6-astra-blender-pelican-bicycle](https://github.com/simonw/gpt-6-astra-blender-pelican-bicycle)), but the generator is scene-agnostic.
+Default data recreates a pelican riding a bicycle along a sunset boardwalk (inspired by [simonw/gpt-6-astra-blender-pelican-bicycle](https://github.com/simonw/gpt-6-astra-blender-pelican-bicycle)): the pelican bikes, takes off, looks at the camera and talks (no audio), then lands and bikes on — all in 10 seconds. The generator is scene-agnostic.
 
 ## Tooling by platform
 
@@ -63,6 +63,8 @@ Declared under `scene.json` → `actions`. Built-ins in `scripts/actions.py`:
 | `flutter` | Sinusoidal rotation sway |
 | `follow_axis` | Offset one axis over time |
 | `look_at` | Orient toward points |
+| `keyframes` | Multi-key location / rotation / scale / ortho zoom |
+| `talk` | Visual speech pulse (scale, no audio) |
 | `parent` | Parent keep-transform |
 | `bob_matching` | Bob all objects with a name prefix |
 | `set_interpolation` | LINEAR / BEZIER on fcurves |

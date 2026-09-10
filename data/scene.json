@@ -1,9 +1,9 @@
 {
-  "title": "Pelican Coastal Parade - Bicycle Ride",
+  "title": "Pelican Coastal Parade - Fly, Talk, Bike",
   "builder": "declarative",
   "seed": 14,
-  "fps": 14,
-  "duration_seconds": 4,
+  "fps": 24,
+  "duration_seconds": 10,
   "resolution": [1920, 1080],
   "background_color": [0.39, 0.60, 0.74, 1.0],
   "background_strength": 0.24,
@@ -89,45 +89,215 @@
       "target": "Plump pelican body",
       "axis": 2,
       "amplitude": 0.045,
-      "cycles": 6.0
+      "cycles": 12.0
     },
     {
       "action": "flutter",
       "target": "Scarf flutter",
       "axis": 2,
       "amplitude": 0.18,
-      "cycles": 8.0
+      "cycles": 16.0
     },
     {
       "action": "bob_matching",
       "prefix": "Party balloon",
       "axis": 2,
       "amplitude": 0.08,
-      "cycles": 5.0,
-      "steps": 5
+      "cycles": 10.0,
+      "steps": 8
     },
     {
-      "action": "follow_axis",
-      "target": "ParadeCamera",
+      "action": "keyframes",
+      "target": "PelicanFlyer",
+      "property": "location",
+      "keys": [
+        { "time": 0.0, "value": [0.0, 0.0, 0.0] },
+        { "time": 1.6, "value": [0.0, 0.0, 0.0] },
+        { "time": 3.0, "value": [0.10, -1.50, 2.05] },
+        { "time": 3.6, "value": [0.15, -2.05, 2.35] },
+        { "time": 4.5, "value": [0.15, -2.05, 2.52] },
+        { "time": 5.5, "value": [0.15, -2.05, 2.20] },
+        { "time": 6.5, "value": [0.15, -2.05, 2.35] },
+        { "time": 7.2, "value": [0.08, -0.90, 1.20] },
+        { "time": 8.5, "value": [0.0, 0.0, 0.0] },
+        { "time": 10.0, "value": [0.0, 0.0, 0.0] }
+      ]
+    },
+    {
+      "action": "keyframes",
+      "target": "PelicanFlyer",
+      "property": "rotation_euler",
+      "keys": [
+        { "time": 0.0, "value": [0.0, 0.0, 0.0] },
+        { "time": 2.8, "value": [0.0, 0.0, 0.0] },
+        { "time": 3.6, "value": [0.12, 0.0, -1.48] },
+        { "time": 6.5, "value": [0.12, 0.0, -1.48] },
+        { "time": 7.2, "value": [0.0, 0.0, 0.0] },
+        { "time": 10.0, "value": [0.0, 0.0, 0.0] }
+      ]
+    },
+    {
+      "action": "rotate",
+      "target": "WingL",
+      "from": [0.0, 0.0, 0.0],
+      "to": [0.0, 0.0, 0.0],
+      "time_start": 0.0,
+      "time_end": 1.6
+    },
+    {
+      "action": "rotate",
+      "target": "WingL",
+      "from": [0.0, 0.0, 0.0],
+      "to": [0.45, 0.18, -1.20],
+      "time_start": 1.6,
+      "time_end": 3.0
+    },
+    {
+      "action": "flutter",
+      "target": "WingL",
       "axis": 0,
-      "base": [5.6, -21.0, 6.3],
-      "values": [-1.12, 1.33]
+      "amplitude": 0.58,
+      "cycles": 10.0,
+      "base": [0.45, 0.18, -1.20],
+      "time_start": 3.0,
+      "time_end": 7.2,
+      "steps": 40
+    },
+    {
+      "action": "rotate",
+      "target": "WingL",
+      "from": [0.45, 0.18, -1.20],
+      "to": [0.0, 0.0, 0.0],
+      "time_start": 7.2,
+      "time_end": 8.5
+    },
+    {
+      "action": "rotate",
+      "target": "WingR",
+      "from": [0.0, 0.0, 0.0],
+      "to": [0.0, 0.0, 0.0],
+      "time_start": 0.0,
+      "time_end": 1.6
+    },
+    {
+      "action": "rotate",
+      "target": "WingR",
+      "from": [0.0, 0.0, 0.0],
+      "to": [0.45, -0.18, 1.20],
+      "time_start": 1.6,
+      "time_end": 3.0
+    },
+    {
+      "action": "flutter",
+      "target": "WingR",
+      "axis": 0,
+      "amplitude": 0.58,
+      "cycles": 10.0,
+      "phase": 3.14,
+      "base": [0.45, -0.18, 1.20],
+      "time_start": 3.0,
+      "time_end": 7.2,
+      "steps": 40
+    },
+    {
+      "action": "rotate",
+      "target": "WingR",
+      "from": [0.45, -0.18, 1.20],
+      "to": [0.0, 0.0, 0.0],
+      "time_start": 7.2,
+      "time_end": 8.5
+    },
+    {
+      "action": "flutter",
+      "target": "PelicanHead",
+      "axis": 0,
+      "amplitude": 0.10,
+      "cycles": 8.0,
+      "time_start": 3.6,
+      "time_end": 6.5,
+      "steps": 28
+    },
+    {
+      "action": "keyframes",
+      "target": "PelicanHead",
+      "property": "rotation_euler",
+      "keys": [
+        { "time": 0.0, "value": [0.0, 0.0, 0.0] },
+        { "time": 6.5, "value": [0.0, 0.0, 0.0] },
+        { "time": 10.0, "value": [0.0, 0.0, 0.0] }
+      ]
+    },
+    {
+      "action": "flutter",
+      "target": "PelicanBeak",
+      "axis": 1,
+      "amplitude": 0.22,
+      "cycles": 9.0,
+      "base": [0.0, 0.06, 0.0],
+      "time_start": 3.6,
+      "time_end": 6.5,
+      "steps": 32
+    },
+    {
+      "action": "talk",
+      "target": "PelicanPouch",
+      "axes": [1, 2],
+      "amplitude": 0.28,
+      "cycles": 8.0,
+      "time_start": 3.6,
+      "time_end": 6.5,
+      "steps": 36
+    },
+    {
+      "action": "keyframes",
+      "target": "PelicanPouch",
+      "property": "scale",
+      "keys": [
+        { "time": 0.0, "value": [1.0, 1.0, 1.0] },
+        { "time": 3.6, "value": [1.0, 1.0, 1.0] },
+        { "time": 6.5, "value": [1.0, 1.0, 1.0] },
+        { "time": 10.0, "value": [1.0, 1.0, 1.0] }
+      ]
+    },
+    {
+      "action": "keyframes",
+      "target": "PelicanBeak",
+      "property": "rotation_euler",
+      "keys": [
+        { "time": 0.0, "value": [0.0, 0.0, 0.0] },
+        { "time": 3.6, "value": [0.0, 0.06, 0.0] },
+        { "time": 6.5, "value": [0.0, 0.0, 0.0] },
+        { "time": 10.0, "value": [0.0, 0.0, 0.0] }
+      ]
     },
     {
       "action": "look_at",
       "target": "ParadeCamera",
-      "locations": [
-        [4.48, -21.0, 6.3],
-        [6.93, -21.0, 6.3]
-      ],
-      "points": [
-        [-3.2, 0.6, 2.7],
-        [3.8, 0.6, 2.7]
+      "keys": [
+        { "time": 0.0, "location": [4.48, -21.0, 6.3], "point": [-3.2, 0.6, 2.7] },
+        { "time": 1.6, "location": [4.70, -21.0, 6.3], "point": [-2.08, 0.6, 2.7] },
+        { "time": 3.6, "location": [2.20, -14.2, 5.35], "point": [-0.45, -1.85, 4.45] },
+        { "time": 6.5, "location": [2.85, -14.2, 5.35], "point": [1.50, -1.85, 4.45] },
+        { "time": 8.5, "location": [6.20, -21.0, 6.3], "point": [2.75, 0.6, 2.7] },
+        { "time": 10.0, "location": [6.93, -21.0, 6.3], "point": [3.8, 0.6, 2.7] }
+      ]
+    },
+    {
+      "action": "keyframes",
+      "target": "ParadeCamera",
+      "property": "ortho_scale",
+      "keys": [
+        { "time": 0.0, "value": 9.4 },
+        { "time": 1.6, "value": 9.4 },
+        { "time": 3.6, "value": 6.15 },
+        { "time": 6.5, "value": 6.05 },
+        { "time": 8.5, "value": 9.4 },
+        { "time": 10.0, "value": 9.4 }
       ]
     },
     {
       "action": "set_interpolation",
-      "targets": ["RideRoot", "RearWheel", "FrontWheel", "ParadeCamera"],
+      "targets": ["RideRoot", "RearWheel", "FrontWheel"],
       "mode": "LINEAR"
     }
   ],

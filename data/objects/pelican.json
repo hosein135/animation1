@@ -4,6 +4,11 @@
   "location": [0, 0, 0],
   "children": [
     {
+      "type": "group",
+      "name": "PelicanFlyer",
+      "location": [0, 0, 0],
+      "children": [
+    {
       "type": "sphere",
       "name": "Plump pelican body",
       "location": [-0.62, 0, 3.04],
@@ -43,160 +48,218 @@
       "material": "Warm ivory plumage"
     },
     {
-      "type": "sphere",
-      "name": "Head",
+      "type": "group",
+      "name": "PelicanHead",
       "location": [0.30, 0, 4.49],
-      "scale": [0.46, 0.34, 0.42],
-      "material": "Warm ivory plumage"
+      "children": [
+        {
+          "type": "sphere",
+          "name": "Head",
+          "location": [0.30, 0, 4.49],
+          "scale": [0.46, 0.34, 0.42],
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "sphere",
+          "name": "Golden eye surround L",
+          "location": [0.44, -0.301, 4.56],
+          "scale": [0.127, 0.042, 0.135],
+          "material": "Soft amber throat pouch"
+        },
+        {
+          "type": "sphere",
+          "name": "Bright black eye L",
+          "location": [0.46, -0.337, 4.58],
+          "scale": [0.069, 0.032, 0.08],
+          "material": "Obsidian eyes"
+        },
+        {
+          "type": "sphere",
+          "name": "Eye glint L",
+          "location": [0.48, -0.362, 4.605],
+          "scale": [0.021, 0.013, 0.023],
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "sphere",
+          "name": "Golden eye surround R",
+          "location": [0.44, 0.301, 4.56],
+          "scale": [0.127, 0.042, 0.135],
+          "material": "Soft amber throat pouch"
+        },
+        {
+          "type": "sphere",
+          "name": "Bright black eye R",
+          "location": [0.46, 0.337, 4.58],
+          "scale": [0.069, 0.032, 0.08],
+          "material": "Obsidian eyes"
+        },
+        {
+          "type": "sphere",
+          "name": "Eye glint R",
+          "location": [0.48, 0.362, 4.605],
+          "scale": [0.021, 0.013, 0.023],
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "path",
+          "name": "Expressive brow L",
+          "points": [[0.31, -0.31, 4.72], [0.44, -0.34, 4.76], [0.55, -0.30, 4.72]],
+          "radius": 0.023,
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "path",
+          "name": "Expressive brow R",
+          "points": [[0.31, 0.31, 4.72], [0.44, 0.34, 4.76], [0.55, 0.30, 4.72]],
+          "radius": 0.023,
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "group",
+          "name": "PelicanPouch",
+          "location": [1.15, 0, 4.05],
+          "children": [
+            { "type": "factory", "factory": "pelican_pouch", "name": "Sculpted soft pelican pouch", "params": {} }
+          ]
+        },
+        {
+          "type": "group",
+          "name": "PelicanBeak",
+          "location": [0.55, 0, 4.345],
+          "children": [
+            { "type": "factory", "factory": "pelican_bill", "name": "Elegant tapered upper bill", "params": {} },
+            {
+              "type": "path",
+              "name": "Fine beak seam",
+              "points": [[0.59, -0.236, 4.32], [1.1, -0.19, 4.30], [1.64, -0.105, 4.28], [1.98, 0, 4.285]],
+              "radius": 0.009,
+              "material": "Palm trunks"
+            },
+            {
+              "type": "sphere",
+              "name": "Small bill nostril L",
+              "location": [0.78, -0.195, 4.347],
+              "scale": [0.027, 0.008, 0.011],
+              "material": "Palm trunks"
+            },
+            {
+              "type": "sphere",
+              "name": "Small bill nostril R",
+              "location": [0.78, 0.195, 4.347],
+              "scale": [0.027, 0.008, 0.011],
+              "material": "Palm trunks"
+            }
+          ]
+        },
+        {
+          "type": "sphere",
+          "name": "Boater hat brim",
+          "location": [0.23, 0, 4.89],
+          "scale": [0.56, 0.43, 0.075],
+          "material": "Butter yellow"
+        },
+        {
+          "type": "rod",
+          "name": "Boater crown",
+          "from": [0.23, 0, 4.91],
+          "to": [0.23, 0, 5.12],
+          "radius": 0.29,
+          "material": "Butter yellow"
+        },
+        {
+          "type": "rod",
+          "name": "Coral hat band",
+          "from": [0.23, 0, 4.93],
+          "to": [0.23, 0, 5.00],
+          "radius": 0.297,
+          "material": "Festival coral"
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "name": "Golden eye surround L",
-      "location": [0.44, -0.301, 4.56],
-      "scale": [0.127, 0.042, 0.135],
-      "material": "Soft amber throat pouch"
+      "type": "group",
+      "name": "WingL",
+      "location": [-0.78, -0.38, 3.40],
+      "children": [
+        {
+          "type": "sphere",
+          "name": "Wingtip holding handlebar L",
+          "location": [0.84, -0.49, 2.73],
+          "scale": [0.15, 0.12, 0.13],
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "path",
+          "name": "Wing reaching handlebars L",
+          "points": [[-0.78, -0.38, 3.40], [-0.32, -0.49, 3.25], [0.17, -0.51, 2.96], [0.87, -0.49, 2.70]],
+          "radius": 0.145,
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "path",
+          "name": "Layered wing feather L0",
+          "points": [[-0.92, -0.42, 3.42], [-0.48, -0.54, 3.15], [0.12, -0.53, 2.94]],
+          "radius": 0.066,
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "path",
+          "name": "Layered wing feather L1",
+          "points": [[-0.92, -0.455, 3.30], [-0.48, -0.567, 3.06], [0.21, -0.53, 2.915]],
+          "radius": 0.066,
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "path",
+          "name": "Layered wing feather L2",
+          "points": [[-0.92, -0.49, 3.18], [-0.48, -0.594, 2.97], [0.30, -0.53, 2.89]],
+          "radius": 0.066,
+          "material": "Cream feather tips"
+        }
+      ]
     },
     {
-      "type": "sphere",
-      "name": "Bright black eye L",
-      "location": [0.46, -0.337, 4.58],
-      "scale": [0.069, 0.032, 0.08],
-      "material": "Obsidian eyes"
-    },
-    {
-      "type": "sphere",
-      "name": "Eye glint L",
-      "location": [0.48, -0.362, 4.605],
-      "scale": [0.021, 0.013, 0.023],
-      "material": "Warm ivory plumage"
-    },
-    {
-      "type": "sphere",
-      "name": "Golden eye surround R",
-      "location": [0.44, 0.301, 4.56],
-      "scale": [0.127, 0.042, 0.135],
-      "material": "Soft amber throat pouch"
-    },
-    {
-      "type": "sphere",
-      "name": "Bright black eye R",
-      "location": [0.46, 0.337, 4.58],
-      "scale": [0.069, 0.032, 0.08],
-      "material": "Obsidian eyes"
-    },
-    {
-      "type": "sphere",
-      "name": "Eye glint R",
-      "location": [0.48, 0.362, 4.605],
-      "scale": [0.021, 0.013, 0.023],
-      "material": "Warm ivory plumage"
-    },
-    { "type": "factory", "factory": "pelican_pouch", "name": "Sculpted soft pelican pouch", "params": {} },
-    { "type": "factory", "factory": "pelican_bill", "name": "Elegant tapered upper bill", "params": {} },
-    {
-      "type": "path",
-      "name": "Fine beak seam",
-      "points": [[0.59, -0.236, 4.32], [1.1, -0.19, 4.30], [1.64, -0.105, 4.28], [1.98, 0, 4.285]],
-      "radius": 0.009,
-      "material": "Palm trunks"
-    },
-    {
-      "type": "sphere",
-      "name": "Small bill nostril L",
-      "location": [0.78, -0.195, 4.347],
-      "scale": [0.027, 0.008, 0.011],
-      "material": "Palm trunks"
-    },
-    {
-      "type": "sphere",
-      "name": "Small bill nostril R",
-      "location": [0.78, 0.195, 4.347],
-      "scale": [0.027, 0.008, 0.011],
-      "material": "Palm trunks"
-    },
-    {
-      "type": "path",
-      "name": "Expressive brow L",
-      "points": [[0.31, -0.31, 4.72], [0.44, -0.34, 4.76], [0.55, -0.30, 4.72]],
-      "radius": 0.023,
-      "material": "Warm ivory plumage"
-    },
-    {
-      "type": "path",
-      "name": "Expressive brow R",
-      "points": [[0.31, 0.31, 4.72], [0.44, 0.34, 4.76], [0.55, 0.30, 4.72]],
-      "radius": 0.023,
-      "material": "Warm ivory plumage"
-    },
-    {
-      "type": "sphere",
-      "name": "Wingtip holding handlebar L",
-      "location": [0.84, -0.49, 2.73],
-      "scale": [0.15, 0.12, 0.13],
-      "material": "Warm ivory plumage"
-    },
-    {
-      "type": "sphere",
-      "name": "Wingtip holding handlebar R",
-      "location": [0.84, 0.49, 2.73],
-      "scale": [0.15, 0.12, 0.13],
-      "material": "Warm ivory plumage"
-    },
-    {
-      "type": "path",
-      "name": "Wing reaching handlebars L",
-      "points": [[-0.78, -0.38, 3.40], [-0.32, -0.49, 3.25], [0.17, -0.51, 2.96], [0.87, -0.49, 2.70]],
-      "radius": 0.145,
-      "material": "Warm ivory plumage"
-    },
-    {
-      "type": "path",
-      "name": "Wing reaching handlebars R",
-      "points": [[-0.78, 0.38, 3.40], [-0.32, 0.49, 3.25], [0.17, 0.51, 2.96], [0.87, 0.49, 2.70]],
-      "radius": 0.145,
-      "material": "Warm ivory plumage"
-    },
-    {
-      "type": "path",
-      "name": "Layered wing feather L0",
-      "points": [[-0.92, -0.42, 3.42], [-0.48, -0.54, 3.15], [0.12, -0.53, 2.94]],
-      "radius": 0.066,
-      "material": "Warm ivory plumage"
-    },
-    {
-      "type": "path",
-      "name": "Layered wing feather L1",
-      "points": [[-0.92, -0.455, 3.30], [-0.48, -0.567, 3.06], [0.21, -0.53, 2.915]],
-      "radius": 0.066,
-      "material": "Warm ivory plumage"
-    },
-    {
-      "type": "path",
-      "name": "Layered wing feather L2",
-      "points": [[-0.92, -0.49, 3.18], [-0.48, -0.594, 2.97], [0.30, -0.53, 2.89]],
-      "radius": 0.066,
-      "material": "Cream feather tips"
-    },
-    {
-      "type": "path",
-      "name": "Layered wing feather R0",
-      "points": [[-0.92, 0.42, 3.42], [-0.48, 0.54, 3.15], [0.12, 0.53, 2.94]],
-      "radius": 0.066,
-      "material": "Warm ivory plumage"
-    },
-    {
-      "type": "path",
-      "name": "Layered wing feather R1",
-      "points": [[-0.92, 0.455, 3.30], [-0.48, 0.567, 3.06], [0.21, 0.53, 2.915]],
-      "radius": 0.066,
-      "material": "Warm ivory plumage"
-    },
-    {
-      "type": "path",
-      "name": "Layered wing feather R2",
-      "points": [[-0.92, 0.49, 3.18], [-0.48, 0.594, 2.97], [0.30, 0.53, 2.89]],
-      "radius": 0.066,
-      "material": "Cream feather tips"
+      "type": "group",
+      "name": "WingR",
+      "location": [-0.78, 0.38, 3.40],
+      "children": [
+        {
+          "type": "sphere",
+          "name": "Wingtip holding handlebar R",
+          "location": [0.84, 0.49, 2.73],
+          "scale": [0.15, 0.12, 0.13],
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "path",
+          "name": "Wing reaching handlebars R",
+          "points": [[-0.78, 0.38, 3.40], [-0.32, 0.49, 3.25], [0.17, 0.51, 2.96], [0.87, 0.49, 2.70]],
+          "radius": 0.145,
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "path",
+          "name": "Layered wing feather R0",
+          "points": [[-0.92, 0.42, 3.42], [-0.48, 0.54, 3.15], [0.12, 0.53, 2.94]],
+          "radius": 0.066,
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "path",
+          "name": "Layered wing feather R1",
+          "points": [[-0.92, 0.455, 3.30], [-0.48, 0.567, 3.06], [0.21, 0.53, 2.915]],
+          "radius": 0.066,
+          "material": "Warm ivory plumage"
+        },
+        {
+          "type": "path",
+          "name": "Layered wing feather R2",
+          "points": [[-0.92, 0.49, 3.18], [-0.48, 0.594, 2.97], [0.30, 0.53, 2.89]],
+          "radius": 0.066,
+          "material": "Cream feather tips"
+        }
+      ]
     },
     {
       "type": "path",
@@ -337,29 +400,6 @@
     },
     {
       "type": "sphere",
-      "name": "Boater hat brim",
-      "location": [0.23, 0, 4.89],
-      "scale": [0.56, 0.43, 0.075],
-      "material": "Butter yellow"
-    },
-    {
-      "type": "rod",
-      "name": "Boater crown",
-      "from": [0.23, 0, 4.91],
-      "to": [0.23, 0, 5.12],
-      "radius": 0.29,
-      "material": "Butter yellow"
-    },
-    {
-      "type": "rod",
-      "name": "Coral hat band",
-      "from": [0.23, 0, 4.93],
-      "to": [0.23, 0, 5.00],
-      "radius": 0.297,
-      "material": "Festival coral"
-    },
-    {
-      "type": "sphere",
       "name": "Party balloon 0",
       "location": [-2.25, 0.5, 4.2],
       "scale": [0.32, 0.28, 0.43],
@@ -420,6 +460,8 @@
       "points": [[-0.9, 0.12, 2.55], [-2.95, 0.4, 3.2], [-3.35, 0.4, 3.46]],
       "radius": 0.012,
       "material": "Warm ivory plumage"
+    }
+      ]
     }
   ]
 }
