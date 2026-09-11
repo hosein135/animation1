@@ -2,10 +2,10 @@
   "title": "Pelican Coastal Parade - Fly, Talk, Bike",
   "builder": "declarative",
   "seed": 14,
-  "fps": 24,
-  "duration_seconds": 10,
-  "resolution": [1920, 1080],
-  "background_color": [0.39, 0.60, 0.74, 1.0],
+  "fps": 12,
+  "duration_seconds": 6,
+  "resolution": [1280, 720],
+  "background_color": [0.39, 0.6, 0.74, 1.0],
   "background_strength": 0.24,
   "camera": {
     "name": "ParadeCamera",
@@ -25,12 +25,24 @@
       "ref": "ride_root",
       "name": "RideRoot",
       "children": [
-        { "ref": "bicycle", "name": "Bicycle" },
-        { "ref": "pelican", "name": "Pelican" }
+        {
+          "ref": "bicycle",
+          "name": "Bicycle"
+        },
+        {
+          "ref": "pelican",
+          "name": "Pelican"
+        }
       ]
     },
-    { "ref": "boardwalk", "name": "Boardwalk" },
-    { "ref": "environment", "name": "Environment" }
+    {
+      "ref": "boardwalk",
+      "name": "Boardwalk"
+    },
+    {
+      "ref": "environment",
+      "name": "Environment"
+    }
   ],
   "lights": [
     {
@@ -89,21 +101,21 @@
       "target": "Plump pelican body",
       "axis": 2,
       "amplitude": 0.045,
-      "cycles": 12.0
+      "cycles": 7.2
     },
     {
       "action": "flutter",
       "target": "Scarf flutter",
       "axis": 2,
       "amplitude": 0.18,
-      "cycles": 16.0
+      "cycles": 9.6
     },
     {
       "action": "bob_matching",
       "prefix": "Party balloon",
       "axis": 2,
       "amplitude": 0.08,
-      "cycles": 10.0,
+      "cycles": 6.0,
       "steps": 8
     },
     {
@@ -111,16 +123,46 @@
       "target": "PelicanFlyer",
       "property": "location",
       "keys": [
-        { "time": 0.0, "value": [0.0, 0.0, 0.0] },
-        { "time": 1.6, "value": [0.0, 0.0, 0.0] },
-        { "time": 3.0, "value": [0.10, -1.50, 2.05] },
-        { "time": 3.6, "value": [0.15, -2.05, 2.35] },
-        { "time": 4.5, "value": [0.15, -2.05, 2.52] },
-        { "time": 5.5, "value": [0.15, -2.05, 2.20] },
-        { "time": 6.5, "value": [0.15, -2.05, 2.35] },
-        { "time": 7.2, "value": [0.08, -0.90, 1.20] },
-        { "time": 8.5, "value": [0.0, 0.0, 0.0] },
-        { "time": 10.0, "value": [0.0, 0.0, 0.0] }
+        {
+          "time": 0.0,
+          "value": [0.0, 0.0, 0.0]
+        },
+        {
+          "time": 0.96,
+          "value": [0.0, 0.0, 0.0]
+        },
+        {
+          "time": 1.8,
+          "value": [0.1, -1.5, 2.05]
+        },
+        {
+          "time": 2.16,
+          "value": [0.15, -2.05, 2.35]
+        },
+        {
+          "time": 2.7,
+          "value": [0.15, -2.05, 2.52]
+        },
+        {
+          "time": 3.3,
+          "value": [0.15, -2.05, 2.2]
+        },
+        {
+          "time": 3.9,
+          "value": [0.15, -2.05, 2.35]
+        },
+        {
+          "time": 4.32,
+          "value": [0.08, -0.9, 1.2]
+        },
+        {
+          "time": 5.1,
+          "value": [0.0, 0.0, 0.0]
+        },
+        {
+          "time": 6.0,
+          "value": [0.0, 0.0, 0.0]
+        }
       ]
     },
     {
@@ -128,12 +170,30 @@
       "target": "PelicanFlyer",
       "property": "rotation_euler",
       "keys": [
-        { "time": 0.0, "value": [0.0, 0.0, 0.0] },
-        { "time": 2.8, "value": [0.0, 0.0, 0.0] },
-        { "time": 3.6, "value": [0.12, 0.0, -1.48] },
-        { "time": 6.5, "value": [0.12, 0.0, -1.48] },
-        { "time": 7.2, "value": [0.0, 0.0, 0.0] },
-        { "time": 10.0, "value": [0.0, 0.0, 0.0] }
+        {
+          "time": 0.0,
+          "value": [0.0, 0.0, 0.0]
+        },
+        {
+          "time": 1.68,
+          "value": [0.0, 0.0, 0.0]
+        },
+        {
+          "time": 2.16,
+          "value": [0.12, 0.0, -1.48]
+        },
+        {
+          "time": 3.9,
+          "value": [0.12, 0.0, -1.48]
+        },
+        {
+          "time": 4.32,
+          "value": [0.0, 0.0, 0.0]
+        },
+        {
+          "time": 6.0,
+          "value": [0.0, 0.0, 0.0]
+        }
       ]
     },
     {
@@ -142,34 +202,34 @@
       "from": [0.0, 0.0, 0.0],
       "to": [0.0, 0.0, 0.0],
       "time_start": 0.0,
-      "time_end": 1.6
+      "time_end": 0.96
     },
     {
       "action": "rotate",
       "target": "WingL",
       "from": [0.0, 0.0, 0.0],
-      "to": [0.45, 0.18, -1.20],
-      "time_start": 1.6,
-      "time_end": 3.0
+      "to": [0.45, 0.18, -1.2],
+      "time_start": 0.96,
+      "time_end": 1.8
     },
     {
       "action": "flutter",
       "target": "WingL",
       "axis": 0,
       "amplitude": 0.58,
-      "cycles": 10.0,
-      "base": [0.45, 0.18, -1.20],
-      "time_start": 3.0,
-      "time_end": 7.2,
-      "steps": 40
+      "cycles": 6.0,
+      "base": [0.45, 0.18, -1.2],
+      "time_start": 1.8,
+      "time_end": 4.32,
+      "steps": 24
     },
     {
       "action": "rotate",
       "target": "WingL",
-      "from": [0.45, 0.18, -1.20],
+      "from": [0.45, 0.18, -1.2],
       "to": [0.0, 0.0, 0.0],
-      "time_start": 7.2,
-      "time_end": 8.5
+      "time_start": 4.32,
+      "time_end": 5.1
     },
     {
       "action": "rotate",
@@ -177,54 +237,63 @@
       "from": [0.0, 0.0, 0.0],
       "to": [0.0, 0.0, 0.0],
       "time_start": 0.0,
-      "time_end": 1.6
+      "time_end": 0.96
     },
     {
       "action": "rotate",
       "target": "WingR",
       "from": [0.0, 0.0, 0.0],
-      "to": [0.45, -0.18, 1.20],
-      "time_start": 1.6,
-      "time_end": 3.0
+      "to": [0.45, -0.18, 1.2],
+      "time_start": 0.96,
+      "time_end": 1.8
     },
     {
       "action": "flutter",
       "target": "WingR",
       "axis": 0,
       "amplitude": 0.58,
-      "cycles": 10.0,
+      "cycles": 6.0,
       "phase": 3.14,
-      "base": [0.45, -0.18, 1.20],
-      "time_start": 3.0,
-      "time_end": 7.2,
-      "steps": 40
+      "base": [0.45, -0.18, 1.2],
+      "time_start": 1.8,
+      "time_end": 4.32,
+      "steps": 24
     },
     {
       "action": "rotate",
       "target": "WingR",
-      "from": [0.45, -0.18, 1.20],
+      "from": [0.45, -0.18, 1.2],
       "to": [0.0, 0.0, 0.0],
-      "time_start": 7.2,
-      "time_end": 8.5
+      "time_start": 4.32,
+      "time_end": 5.1
     },
     {
       "action": "flutter",
       "target": "PelicanHead",
       "axis": 0,
-      "amplitude": 0.10,
-      "cycles": 8.0,
-      "time_start": 3.6,
-      "time_end": 6.5,
-      "steps": 28
+      "amplitude": 0.1,
+      "cycles": 4.8,
+      "time_start": 2.16,
+      "time_end": 3.9,
+      "steps": 17
     },
     {
       "action": "keyframes",
       "target": "PelicanHead",
       "property": "rotation_euler",
       "keys": [
-        { "time": 0.0, "value": [0.0, 0.0, 0.0] },
-        { "time": 6.5, "value": [0.0, 0.0, 0.0] },
-        { "time": 10.0, "value": [0.0, 0.0, 0.0] }
+        {
+          "time": 0.0,
+          "value": [0.0, 0.0, 0.0]
+        },
+        {
+          "time": 3.9,
+          "value": [0.0, 0.0, 0.0]
+        },
+        {
+          "time": 6.0,
+          "value": [0.0, 0.0, 0.0]
+        }
       ]
     },
     {
@@ -232,31 +301,43 @@
       "target": "PelicanBeak",
       "axis": 1,
       "amplitude": 0.22,
-      "cycles": 9.0,
+      "cycles": 5.4,
       "base": [0.0, 0.06, 0.0],
-      "time_start": 3.6,
-      "time_end": 6.5,
-      "steps": 32
+      "time_start": 2.16,
+      "time_end": 3.9,
+      "steps": 19
     },
     {
       "action": "talk",
       "target": "PelicanPouch",
       "axes": [1, 2],
       "amplitude": 0.28,
-      "cycles": 8.0,
-      "time_start": 3.6,
-      "time_end": 6.5,
-      "steps": 36
+      "cycles": 4.8,
+      "time_start": 2.16,
+      "time_end": 3.9,
+      "steps": 22
     },
     {
       "action": "keyframes",
       "target": "PelicanPouch",
       "property": "scale",
       "keys": [
-        { "time": 0.0, "value": [1.0, 1.0, 1.0] },
-        { "time": 3.6, "value": [1.0, 1.0, 1.0] },
-        { "time": 6.5, "value": [1.0, 1.0, 1.0] },
-        { "time": 10.0, "value": [1.0, 1.0, 1.0] }
+        {
+          "time": 0.0,
+          "value": [1.0, 1.0, 1.0]
+        },
+        {
+          "time": 2.16,
+          "value": [1.0, 1.0, 1.0]
+        },
+        {
+          "time": 3.9,
+          "value": [1.0, 1.0, 1.0]
+        },
+        {
+          "time": 6.0,
+          "value": [1.0, 1.0, 1.0]
+        }
       ]
     },
     {
@@ -264,22 +345,58 @@
       "target": "PelicanBeak",
       "property": "rotation_euler",
       "keys": [
-        { "time": 0.0, "value": [0.0, 0.0, 0.0] },
-        { "time": 3.6, "value": [0.0, 0.06, 0.0] },
-        { "time": 6.5, "value": [0.0, 0.0, 0.0] },
-        { "time": 10.0, "value": [0.0, 0.0, 0.0] }
+        {
+          "time": 0.0,
+          "value": [0.0, 0.0, 0.0]
+        },
+        {
+          "time": 2.16,
+          "value": [0.0, 0.06, 0.0]
+        },
+        {
+          "time": 3.9,
+          "value": [0.0, 0.0, 0.0]
+        },
+        {
+          "time": 6.0,
+          "value": [0.0, 0.0, 0.0]
+        }
       ]
     },
     {
       "action": "look_at",
       "target": "ParadeCamera",
       "keys": [
-        { "time": 0.0, "location": [4.48, -21.0, 6.3], "point": [-3.2, 0.6, 2.7] },
-        { "time": 1.6, "location": [4.70, -21.0, 6.3], "point": [-2.08, 0.6, 2.7] },
-        { "time": 3.6, "location": [2.20, -14.2, 5.35], "point": [-0.45, -1.85, 4.45] },
-        { "time": 6.5, "location": [2.85, -14.2, 5.35], "point": [1.50, -1.85, 4.45] },
-        { "time": 8.5, "location": [6.20, -21.0, 6.3], "point": [2.75, 0.6, 2.7] },
-        { "time": 10.0, "location": [6.93, -21.0, 6.3], "point": [3.8, 0.6, 2.7] }
+        {
+          "time": 0.0,
+          "location": [4.48, -21.0, 6.3],
+          "point": [-3.2, 0.6, 2.7]
+        },
+        {
+          "time": 0.96,
+          "location": [4.7, -21.0, 6.3],
+          "point": [-2.08, 0.6, 2.7]
+        },
+        {
+          "time": 2.16,
+          "location": [2.2, -14.2, 5.35],
+          "point": [-0.45, -1.85, 4.45]
+        },
+        {
+          "time": 3.9,
+          "location": [2.85, -14.2, 5.35],
+          "point": [1.5, -1.85, 4.45]
+        },
+        {
+          "time": 5.1,
+          "location": [6.2, -21.0, 6.3],
+          "point": [2.75, 0.6, 2.7]
+        },
+        {
+          "time": 6.0,
+          "location": [6.93, -21.0, 6.3],
+          "point": [3.8, 0.6, 2.7]
+        }
       ]
     },
     {
@@ -287,12 +404,30 @@
       "target": "ParadeCamera",
       "property": "ortho_scale",
       "keys": [
-        { "time": 0.0, "value": 9.4 },
-        { "time": 1.6, "value": 9.4 },
-        { "time": 3.6, "value": 6.15 },
-        { "time": 6.5, "value": 6.05 },
-        { "time": 8.5, "value": 9.4 },
-        { "time": 10.0, "value": 9.4 }
+        {
+          "time": 0.0,
+          "value": 9.4
+        },
+        {
+          "time": 0.96,
+          "value": 9.4
+        },
+        {
+          "time": 2.16,
+          "value": 6.15
+        },
+        {
+          "time": 3.9,
+          "value": 6.05
+        },
+        {
+          "time": 5.1,
+          "value": 9.4
+        },
+        {
+          "time": 6.0,
+          "value": 9.4
+        }
       ]
     },
     {
@@ -306,24 +441,24 @@
     "blender_engine": "eevee",
     "blender_workers": 0,
     "blender_threads": 0,
-    "prefer_cycles_gpu": true,
-    "eevee_samples": 8,
-    "cycles_samples": 28,
+    "prefer_cycles_gpu": false,
+    "eevee_samples": 4,
+    "cycles_samples": 8,
     "cycles_adaptive": true,
-    "cycles_noise_threshold": 0.05,
-    "cycles_min_samples": 4,
-    "cycles_denoise": true,
-    "cycles_tile_size": 512
+    "cycles_noise_threshold": 0.1,
+    "cycles_min_samples": 2,
+    "cycles_denoise": false,
+    "cycles_tile_size": 256
   },
   "output": {
     "frame_format": "JPEG",
-    "jpeg_quality": 90,
+    "jpeg_quality": 75,
     "png_compression": 1,
     "video_codec": "auto",
     "prefer_encoder": "auto",
-    "video_crf": 18,
-    "video_cq": 19,
-    "video_preset": "fast",
-    "nvenc_preset": "p4"
+    "video_crf": 23,
+    "video_cq": 23,
+    "video_preset": "ultrafast",
+    "nvenc_preset": "p1"
   }
 }

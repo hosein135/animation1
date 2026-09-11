@@ -169,12 +169,12 @@ def configure_eevee(scn, accel: dict | None = None) -> str:
                 for attr, val in (
                     ("taa_render_samples", samples),
                     ("taa_samples", samples),
-                    ("use_gtao", True),
+                    ("use_gtao", bool(accel.get("eevee_gtao", False))),
                     ("use_bloom", False),
                     ("use_ssr", False),
                     ("use_motion_blur", False),
                     ("use_raytracing", False),
-                    ("use_shadows", True),
+                    ("use_shadows", bool(accel.get("eevee_shadows", True))),
                     ("shadow_ray_count", 1),
                     ("shadow_step_count", 2),
                 ):
