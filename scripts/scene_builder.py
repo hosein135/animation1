@@ -268,11 +268,10 @@ def build_animation(data_dir: Path, scene_cfg: dict | None = None) -> dict:
     for o in bpy.data.objects:
         ctx["objects"][o.name] = o
 
-    actions.apply_actions(scene_cfg.get("actions", []), ctx)
-
     scn = bpy.context.scene
     scn.frame_start = 1
     scn.frame_end = frame_end
+    actions.apply_actions(scene_cfg.get("actions", []), ctx)
     title = scene_cfg.get("title", "Animation")
     print(f"Scene built ({title}): {frame_end} frames @ {fps} fps, {len(ctx['objects'])} objects")
     return scene_cfg

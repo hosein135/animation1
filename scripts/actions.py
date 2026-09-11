@@ -217,25 +217,78 @@ def keyframes(cfg: dict, ctx: dict) -> None:
 
 
 def talk(cfg: dict, ctx: dict) -> None:
-    """Speech-like scale pulse for a pouch/beak (visual only, no audio)."""
+    """Speech-like pouch scale and optional jaw rotation (visual only, no audio)."""
     obj = _obj(ctx, cfg["target"])
     start, end = _frame_range(cfg, ctx)
     axes = cfg.get("axes", [1, 2])
     amplitude = float(cfg.get("amplitude", 0.22))
     cycles = float(cfg.get("cycles", 8.0))
     base = list(cfg["base"]) if "base" in cfg else list(obj.scale)
+    jaw_axis = cfg.get("jaw_axis")
+    jaw_open = float(cfg.get("jaw_open", 0.28))
+    jaw_base = list(cfg["jaw_base"]) if "jaw_base" in cfg else list(obj.rotation_euler)
     steps = _steps(cfg, start, end)
     for step in range(steps + 1):
         fr = start + int(step * (end - start) / steps)
         t = (fr - start) / max(1, end - start)
-        pulse = abs(math.sin(t * math.pi * cycles))
-        pulse += 0.45 * abs(math.sin(t * math.pi * cycles * 1.7 + 0.6))
-        pulse *= amplitude
-        sc = list(base)
-        for ax in axes:
-            sc[int(ax)] = base[int(ax)] * (1.0 + pulse)
-        obj.scale = sc
-        obj.keyframe_insert(data_path="scale", frame=fr)
+        opens = abs(math.sin(t * math.pi * cycles)) ** 1.2
+        chatter = 0.42 * abs(math.sin(t * math.pi * cycles * 1.9 + 0.55))
+        gap = 0.38 + 0.62 * max(0.0, math.sin(t * math.pi * 3.2 + 0.2))
+        pulse = (0.72 * opens + 0.28 * chatter) * gap
+        if axes and amplitude:
+            sc = list(base)
+            for ax in axes:
+                sc[int(ax)] = base[int(ax)] * (1.0 + pulse * amplitude)
+            obj.scale = sc
+            obj.keyframe_insert(data_path="scale", frame=fr)
+        if jaw_axis is not None:
+            rot = list(jaw_base)
+            rot[int(jaw_axis)] = jaw_base[int(jaw_axis)] + jaw_open * pulse
+            obj.rotation_euler = rot
+            obj.keyframe_insert(data_path="rotation_euler", frame=fr)
+
+
+def front_of(cfg: dict, ctx: dict) -> None:
+    """Place an object in front of a target's local face axis and look at it."""
+    import bpy
+    from mathutils import Vector
+
+    obj = _obj(ctx, cfg["target"])
+    target = _obj(ctx, cfg["of"])
+    start, end = _frame_range(cfg, ctx)
+    distance = float(cfg.get("distance", 6.8))
+    axis_name = str(cfg.get("axis", "X")).upper()
+    axis_vec = {"X": Vector((1.0, 0.0, 0.0)), "Y": Vector((0.0, 1.0, 0.0)), "Z": Vector((0.0, 0.0, 1.0))}[axis_name]
+    if cfg.get("invert"):
+        axis_vec = -axis_vec
+    lift = Vector(cfg.get("lift", [0.0, 0.0, 0.12]))
+    look_along = float(cfg.get("look_along", 0.58))
+    look_lift = Vector(cfg.get("look_lift", [0.0, 0.0, -0.18]))
+    steps = _steps(cfg, start, end)
+    scene = bpy.context.scene
+    view = bpy.context.view_layer
+    prev = scene.frame_current
+    try:
+        for step in range(steps + 1):
+            fr = start + int(step * (end - start) / steps)
+            scene.frame_set(fr)
+            view.update()
+            wm = target.matrix_world.copy()
+            origin = wm.to_translation()
+            face = wm.to_3x3() @ axis_vec
+            if face.length < 1e-6:
+                face = Vector((0.0, -1.0, 0.0))
+            else:
+                face.normalize()
+            loc = origin + face * distance + lift
+            look = origin + face * look_along + look_lift
+            obj.location = loc
+            obj.rotation_euler = (look - loc).to_track_quat("-Z", "Y").to_euler()
+            obj.keyframe_insert(data_path="location", frame=fr)
+            obj.keyframe_insert(data_path="rotation_euler", frame=fr)
+    finally:
+        scene.frame_set(prev)
+        view.update()
 
 
 def parent(cfg: dict, ctx: dict) -> None:
@@ -277,6 +330,7 @@ ACTION_REGISTRY: dict[str, ActionFn] = {
     "look_at": look_at,
     "keyframes": keyframes,
     "talk": talk,
+    "front_of": front_of,
     "parent": parent,
     "set_interpolation": set_interpolation,
     "bob_matching": bob_matching,
