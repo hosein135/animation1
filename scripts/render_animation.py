@@ -77,18 +77,26 @@ def configure_gpu_cycles(scn, samples: int, accel: dict | None = None) -> str:
 
     scn.cycles.samples = samples
 
-    # GPU denoiser when available (OptiX); skip if samples already high and user opts out.
+    # GPU denoise is a cheap pass at 720p (OptiX ~tens of ms/frame). Keep it on unless opted out.
     use_denoise = bool(accel.get("cycles_denoise", True))
     scn.cycles.use_denoising = use_denoise
+    denoise_label = "off"
     if use_denoise:
-        prefer = os.environ.get("ANIM_CYCLES_DEVICE", "").strip().upper()
-        denoisers = ("OPENIMAGEDENOISE", "NLM") if prefer.startswith("CUDA") else ("OPTIX", "OPENIMAGEDENOISE", "NLM")
-        for denoiser in denoisers:
+        # OptiX denoise works with CUDA path tracing; it is not the OptiX render backend.
+        for denoiser in ("OPTIX", "OPENIMAGEDENOISE", "NLM"):
             try:
                 scn.cycles.denoiser = denoiser
+                denoise_label = denoiser
                 break
             except Exception:
                 continue
+        if hasattr(scn.cycles, "denoising_use_gpu"):
+            scn.cycles.denoising_use_gpu = True
+        if hasattr(scn.cycles, "denoising_prefilter"):
+            try:
+                scn.cycles.denoising_prefilter = "FAST"
+            except Exception:
+                pass
 
     # Large tiles for GPU path tracing.
     tile = int(accel.get("cycles_tile_size", 512))
@@ -136,8 +144,8 @@ def configure_gpu_cycles(scn, samples: int, accel: dict | None = None) -> str:
                     enabled += 1
             if enabled:
                 scn.cycles.device = "GPU"
-                label = f"CYCLES/{compute}+CPU({enabled} GPU)"
-                print(f"Blender Cycles devices ({compute}):")
+                label = f"CYCLES/{compute}+CPU({enabled} GPU, denoise={denoise_label})"
+                print(f"Blender Cycles devices ({compute}), denoise={denoise_label}:")
                 for d in devices:
                     print(f"  [{[' ', 'x'][bool(d.use)]}] {d.name} ({d.type})")
                 return label

@@ -507,7 +507,7 @@
     "cycles_adaptive": true,
     "cycles_noise_threshold": 0.1,
     "cycles_min_samples": 2,
-    "cycles_denoise": false,
+    "cycles_denoise": true,
     "cycles_tile_size": 256
   },
   "output": {
